@@ -10,7 +10,7 @@ metadata:
   labels:
     app: minio
   name: minio
-  namespace: kserve # Change this value to match the namespace metadata.name
+  namespace: minio
 spec:
   containers:
   - name: minio

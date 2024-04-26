@@ -33,8 +33,9 @@ deploymentSpec:
         - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
           \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
-          $0\" \"$@\"\n"
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'Minio' 'cryptography'\
+          \ 'Werkzeug' && \"$0\" \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -47,8 +48,25 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef download_data(url: str, filename: str) -> str:\n    from urllib.request\
-          \ import urlretrieve\n    path, headers = urlretrieve(url, filename)\n \
-          \   return path\n\n"
+          \ import urlretrieve\n    from werkzeug.utils import secure_filename\n \
+          \   from minio import Minio\n    import os\n    def upload_file(path):\n\
+          \        with open(path) as f: data = f.read()\n        # If the user does\
+          \ not select a file, the browser submits an\n        # empty file without\
+          \ a filename.\n        if path == \"\":\n            return \"file not found\"\
+          \n        if path:\n            filename = secure_filename(path)\n     \
+          \       size = os.stat(path).st_size\n            msg = upload_object(filename,\
+          \ data, size)\n            return msg\n    def upload_object(filename, data,\
+          \ length):\n        client = Minio(MINIO_ENDPOINT, MINIO_USER, MINIO_PASS,\
+          \ secure=False)\n        # Make bucket if not exist.\n        found = client.bucket_exists(BUCKET_NAME)\n\
+          \        if not found:\n            client.make_bucket(BUCKET_NAME)\n  \
+          \      else:\n            return f\"Bucket {BUCKET_NAME} already exists\"\
+          \n        client.put_object(BUCKET_NAME, filename, data, length)\n     \
+          \   return f\"{filename} is successfully uploaded to bucket {BUCKET_NAME}.\"\
+          \n    # download file\n    path, headers = urlretrieve(url, filename)\n\
+          \    # minio credentials\n    MINIO_USER = \"minioadmin\"\n    MINIO_PASS\
+          \ = \"minioadmin\"\n    BUCKET_NAME = \"flask-minio\"\n    MINIO_ENDPOINT\
+          \ = \"minio-svc.minio:9000\"\n    msg = upload_file(path)\n    return msg\n\
+          \n"
         image: python:3.7
 pipelineInfo:
   name: my-pipeline
