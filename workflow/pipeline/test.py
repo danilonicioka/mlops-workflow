@@ -17,8 +17,8 @@ def upload_file(path):
         return msg
     
 def upload_object(destination_file, source_file, size):
-    with open(source_file) as f: data = f.read()
-    data = BytesIO(data)
+    # with open(source_file) as f: data = f.read()
+    data = BytesIO(source_file)
     bucket_name = BUCKET_NAME
     # class Dataset:
     #     def __init__(self, data=None):
