@@ -29,8 +29,6 @@ def download_data(url: str, filename: str) -> str:
         found = client.bucket_exists(BUCKET_NAME)
         if not found:
             client.make_bucket(BUCKET_NAME)
-        else:
-            return f"Bucket {BUCKET_NAME} already exists"
         client.put_object(BUCKET_NAME, filename, dataset, length)
         return f"{filename} is successfully uploaded to bucket {BUCKET_NAME}."
     # download file
