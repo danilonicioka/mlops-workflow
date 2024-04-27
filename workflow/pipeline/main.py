@@ -8,29 +8,34 @@ def download_data(url: str, filename: str) -> str:
     from minio import Minio
     import os
     def upload_file(path):
-        with open(path) as f: data = f.read()
+        source_file = path
         # If the user does not select a file, the browser submits an
         # empty file without a filename.
-        if path == "":
+        if source_file == "":
             return "file not found"
-        if path:
-            filename = secure_filename(path)
+        if source_file:
+            destination_file = secure_filename(source_file)
             size = os.stat(path).st_size
-            msg = upload_object(filename, data, size)
+            msg = upload_object(destination_file, source_file, size)
             return msg
-    def upload_object(filename, data, length):
-        class Dataset:
-            def __init__(self, data=None):
-                # Initialize the data attribute with the provided data or an empty list by default
-                self.data = data if data is not None else []
-        dataset = Dataset(data=data)
+    def upload_object(destination_file, source_file, size):
+        bucket_name = BUCKET_NAME
+        # class Dataset:
+        #     def __init__(self, data=None):
+        #         # Initialize the data attribute with the provided data or an empty list by default
+        #         self.data = data if data is not None else []
+        # dataset = Dataset(data=data)
         client = Minio(MINIO_ENDPOINT, MINIO_USER, MINIO_PASS, secure=False)
         # Make bucket if not exist.
-        found = client.bucket_exists(BUCKET_NAME)
+        found = client.bucket_exists(bucket_name)
         if not found:
-            client.make_bucket(BUCKET_NAME)
-        client.put_object(BUCKET_NAME, filename, dataset, length)
-        return f"{filename} is successfully uploaded to bucket {BUCKET_NAME}."
+            client.make_bucket(bucket_name)
+            print("Created bucket", bucket_name)
+        else:
+            print("Bucket", bucket_name, "already exists")
+        # client.put_object(bucket_name, destination_file, source_file, size)
+        client.fput_object(bucket_name, destination_file, source_file, size)
+        return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
     # download file
     path, headers = urlretrieve(url, filename)
     # minio credentials
