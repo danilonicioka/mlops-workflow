@@ -44,5 +44,5 @@ path, headers = urlretrieve(url, filename)
 MINIO_USER = "minioadmin"
 MINIO_PASS = "minioadmin"
 BUCKET_NAME = "flask-minio"
-MINIO_ENDPOINT = "minio-svc.minio:9000"
+MINIO_ENDPOINT = "localhost:9000"
 msg = upload_file(path)
