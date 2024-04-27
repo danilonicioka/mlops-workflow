@@ -55,7 +55,7 @@ kfp.compiler.Compiler().compile(
     pipeline_func=my_pipeline,
     package_path='pipeline.yaml')
 
-url = "https://github.com/razaulmustafa852/youtubegoes5g/blob/main/Models/Stall-Windows%20-%20Stall-3s.csv"
+url = "https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv"
 filename = "init_dataset.csv"
 
 client = kfp.Client(host="http://localhost:3000")
