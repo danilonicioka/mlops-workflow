@@ -1,6 +1,7 @@
 from urllib.request import urlretrieve
 from werkzeug.utils import secure_filename
 from minio import Minio
+from io import BytesIO
 import os
 
 def upload_file(path):
@@ -16,7 +17,7 @@ def upload_file(path):
         return msg
     
 def upload_object(destination_file, source_file, size):
-    # with open(source_file) as f: data = f.read()
+    with open(source_file) as f: data = f.read()
     bucket_name = BUCKET_NAME
     # class Dataset:
     #     def __init__(self, data=None):
@@ -32,7 +33,7 @@ def upload_object(destination_file, source_file, size):
     else:
         print("Bucket", bucket_name, "already exists")
     # client.put_object(bucket_name, destination_file, source_file, size)
-    client.fput_object(bucket_name, destination_file, source_file, size)
+    client.fput_object(bucket_name, destination_file, data, size)
     return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
 
 url = "https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv"
