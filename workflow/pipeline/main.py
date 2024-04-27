@@ -19,6 +19,11 @@ def download_data(url: str, filename: str) -> str:
             msg = upload_object(filename, data, size)
             return msg
     def upload_object(filename, data, length):
+        class Dataset:
+            def __init__(self, data=None):
+                # Initialize the data attribute with the provided data or an empty list by default
+                self.data = data if data is not None else []
+        dataset = Dataset(data=data)
         client = Minio(MINIO_ENDPOINT, MINIO_USER, MINIO_PASS, secure=False)
         # Make bucket if not exist.
         found = client.bucket_exists(BUCKET_NAME)
@@ -26,7 +31,7 @@ def download_data(url: str, filename: str) -> str:
             client.make_bucket(BUCKET_NAME)
         else:
             return f"Bucket {BUCKET_NAME} already exists"
-        client.put_object(BUCKET_NAME, filename, data, length)
+        client.put_object(BUCKET_NAME, filename, dataset, length)
         return f"{filename} is successfully uploaded to bucket {BUCKET_NAME}."
     # download file
     path, headers = urlretrieve(url, filename)
