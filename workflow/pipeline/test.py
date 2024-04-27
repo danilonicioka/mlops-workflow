@@ -12,11 +12,11 @@ def upload_file(path):
         return "file not found"
     if source_file:
         destination_file = secure_filename(source_file)
-        size = os.stat(path).st_size
-        msg = upload_object(destination_file, source_file, size)
+        # size = os.stat(path).st_size
+        msg = upload_object(destination_file, source_file)#, size)
         return msg
     
-def upload_object(destination_file, source_file, size):
+def upload_object(destination_file, source_file):#, size):
     with open(source_file) as f: data = f.read()
     data_bytes = data.encode('utf-8')
     data_bytesio = BytesIO(data_bytes)
@@ -35,7 +35,7 @@ def upload_object(destination_file, source_file, size):
     else:
         print("Bucket", bucket_name, "already exists")
     # client.put_object(bucket_name, destination_file, source_file, size)
-    client.put_object(bucket_name, destination_file, data_bytesio, size, content_type='application/csv')
+    client.put_object(bucket_name, destination_file, data_bytesio, content_type='application/csv')
     return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
 
 url = "https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv"
