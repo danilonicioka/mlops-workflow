@@ -3,6 +3,7 @@ from werkzeug.utils import secure_filename
 from minio import Minio
 from io import BytesIO
 import os
+import dvc
 
 def upload_file(path):
     source_file = path
@@ -49,5 +50,6 @@ MINIO_PASS = "minioadmin"
 BUCKET_NAME = "flask-minio"
 MINIO_ENDPOINT = "localhost:9000"
 
-msg = upload_file(path)
+# msg = upload_file(path)
+
 print(msg)

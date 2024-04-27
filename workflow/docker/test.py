@@ -1,6 +1,24 @@
+from flask import Flask, request, redirect
+from werkzeug.utils import secure_filename
+from minio import Minio
+import os
 import kfp
 from kfp import dsl
 
+app = Flask(__name__)
+
+# minio credentials
+MINIO_USER = "minioadmin"
+MINIO_PASS = "minioadmin"
+BUCKET_NAME = "flask-minio"
+MINIO_ENDPOINT = "minio-svc.minio:9000"
+
+# routes
+@app.route("/")
+def index():
+    return "Hello, world!"
+
+@app.route("/init", methods=["POST"])
 @dsl.component(packages_to_install=['Minio','cryptography','Werkzeug'])
 def download_data(url: str, filename: str) -> str:
     from urllib.request import urlretrieve
@@ -44,11 +62,6 @@ def download_data(url: str, filename: str) -> str:
         return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
     # download file
     path, headers = urlretrieve(url, filename)
-    # minio credentials
-    MINIO_USER = "minioadmin"
-    MINIO_PASS = "minioadmin"
-    BUCKET_NAME = "flask-minio"
-    MINIO_ENDPOINT = "minio-svc.minio:9000"
     msg = upload_file(path)
     return msg
 
@@ -72,3 +85,6 @@ client.create_run_from_pipeline_func(
         'url': url,
         'filename': filename
     })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
