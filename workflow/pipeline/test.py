@@ -18,6 +18,7 @@ def upload_file(path):
     
 def upload_object(destination_file, source_file, size):
     with open(source_file) as f: data = f.read()
+    data = BytesIO(data)
     bucket_name = BUCKET_NAME
     # class Dataset:
     #     def __init__(self, data=None):
@@ -33,7 +34,7 @@ def upload_object(destination_file, source_file, size):
     else:
         print("Bucket", bucket_name, "already exists")
     # client.put_object(bucket_name, destination_file, source_file, size)
-    client.fput_object(bucket_name, destination_file, data, size)
+    client.fput_object(bucket_name, destination_file, data=data, size=size, content_type='application/csv')
     return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
 
 url = "https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv"
@@ -46,4 +47,6 @@ MINIO_USER = "minioadmin"
 MINIO_PASS = "minioadmin"
 BUCKET_NAME = "flask-minio"
 MINIO_ENDPOINT = "localhost:9000"
+
 msg = upload_file(path)
+print(msg)
