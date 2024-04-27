@@ -35,7 +35,7 @@ def upload_object(destination_file, source_file):#, size):
     else:
         print("Bucket", bucket_name, "already exists")
     # client.put_object(bucket_name, destination_file, source_file, size)
-    client.put_object(bucket_name, destination_file, data_bytesio, content_type='application/csv')
+    client.put_object(bucket_name, destination_file, data_bytesio, length=len(data_bytes), content_type='application/csv')
     return f"{destination_file} is successfully uploaded to bucket {bucket_name}."
 
 url = "https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv"
