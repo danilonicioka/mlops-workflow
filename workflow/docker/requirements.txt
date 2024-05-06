@@ -3,3 +3,5 @@ cryptography
 Minio==7.2.5
 python-dotenv==1.0.1
 Werkzeug==3.0.2
+gitpython
+requests
