@@ -251,8 +251,11 @@ def init():
     # Initialize DVC and Git repositories
     repo = initialize_dvc_and_repo(config["CLONED_DIR"])
 
-    # Add the file to DVC
-    add_file_to_dvc(config["CLONED_DIR"], local_file_path)
+    # Calculate the relative file path to add to DVC
+    relative_file_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+
+    # Add the file to DVC using the relative file path
+    add_file_to_dvc(config["CLONED_DIR"], relative_file_path)
 
     # Commit changes to Git and push to GitHub
     commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
