@@ -5,7 +5,7 @@ from minio import Minio
 import csv
 import requests
 import logging
-import dvc.api
+from dvc.api import DVCFileSystem
 import subprocess
 
 # Flask application setup
@@ -25,8 +25,8 @@ config = {
     "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'main'),
     "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
     "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
-    "ACCESS_KEY": os.environ.get('MINIO_ACCESS_KEY'),
-    "SECRET_KEY": os.environ.get('MINIO_SECRET_KEY'),
+    "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
+    "SECRET_KEY": os.environ.get('SECRET_KEY'),
     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
     "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
     "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN')
@@ -69,11 +69,16 @@ def setup_minio_client(minio_url, access_key, secret_key, bucket_name):
     return client
 
 def initialize_dvc_and_repo(cloned_dir):
-    """Initialize the Git repository and DVC."""
+    """Initialize the Git repository and DVC filesystem."""
+    # Initialize the DVC repository using subprocess
+    subprocess.run(['dvc', 'init'], cwd=cloned_dir, capture_output=True, text=True, check=True)
+    
+    # Load Git repository and DVCFileSystem
     repo = Repo(cloned_dir)
-    dvc.api.init(repo=cloned_dir)  # Initialize DVC repository
+    dvc_fs = DVCFileSystem(url=cloned_dir)
+    
     logger.info(f"Successfully initialized DVC in {cloned_dir}")
-    return repo
+    return repo, dvc_fs
 
 def clone_repository(repo_url, cloned_dir, branch_name):
     """Clone the Git repository."""
@@ -97,11 +102,11 @@ def download_file(file_url, local_file_path):
         logger.error(f"Failed to download file: {e}")
         raise
 
-def add_file_to_dvc(file_path):
+def add_file_to_dvc_fs(dvc_fs, dvc_file_path):
     """Add a file to DVC."""
     try:
-        dvc.api.add(file_path)
-        logger.info(f'Successfully added {file_path} to DVC')
+        dvc_fs.put(dvc_file_path, dvc_file_path)
+        logger.info(f'Successfully added {dvc_file_path} to DVC')
     except Exception as e:
         logger.error(f'Failed to add file to DVC: {e}')
         raise
@@ -127,22 +132,22 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         logger.error(f'Failed to commit changes to Git or push to GitHub: {e}')
         raise
 
-def configure_dvc_remote(remote_name, remote_url, minio_url, access_key, secret_key):
+def configure_dvc_remote(dvc_fs, remote_name, remote_url, minio_url, access_key, secret_key):
     """Configure the Minio bucket as the DVC remote repository."""
     try:
-        dvc.api.remote_add(remote_name, remote_url)
-        dvc.api.remote_modify(remote_name, 'endpointurl', f'http://{minio_url}')
-        dvc.api.remote_modify(remote_name, 'access_key_id', access_key)
-        dvc.api.remote_modify(remote_name, 'secret_access_key', secret_key)
+        dvc_fs.remote_add(remote_name, remote_url)
+        dvc_fs.remote_modify(remote_name, 'endpointurl', f'http://{minio_url}')
+        dvc_fs.remote_modify(remote_name, 'access_key_id', access_key)
+        dvc_fs.remote_modify(remote_name, 'secret_access_key', secret_key)
         logger.info(f"Successfully configured Minio bucket as DVC remote repository: {remote_name}")
     except Exception as e:
         logger.error(f'Failed to configure DVC remote: {e}')
         raise
 
-def push_data_to_dvc(remote_name):
+def push_data_to_dvc_fs(dvc_fs, remote_name):
     """Push data to the remote DVC repository."""
     try:
-        dvc.api.push(remote_name)
+        dvc_fs.push(remote_name)
         logger.info("Successfully pushed data to remote DVC repository")
     except Exception as e:
         logger.error(f'dvc push failed: {e}')
@@ -186,10 +191,10 @@ def init():
     download_file(config["FILE_URL"], local_file_path)
 
     # Initialize DVC and Git repositories
-    repo = initialize_dvc_and_repo(config["CLONED_DIR"])
+    repo, dvc_fs = initialize_dvc_and_repo(config["CLONED_DIR"])
 
-    # Add file to DVC
-    add_file_to_dvc(local_file_path)
+    # Add file to DVC filesystem
+    add_file_to_dvc_fs(dvc_fs, local_file_path)
 
     # Commit changes to Git and push to GitHub
     commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
@@ -199,10 +204,10 @@ def init():
 
     # Configure Minio as the remote DVC repository
     remote_url = f's3://{config["BUCKET_NAME"]}'
-    configure_dvc_remote(config["REMOTE_NAME"], remote_url, config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"])
+    configure_dvc_remote(dvc_fs, config["REMOTE_NAME"], remote_url, config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"])
 
     # Push data to remote DVC repository
-    push_data_to_dvc(config["REMOTE_NAME"])
+    push_data_to_dvc_fs(dvc_fs, config["REMOTE_NAME"])
 
     return jsonify({
         'message': 'Successfully initialized the app, downloaded file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.'
@@ -224,13 +229,13 @@ def append_csv():
     append_csv_data(source_csv, target_csv)
     
     # Initialize DVC and Git repositories
-    repo = initialize_dvc_and_repo(config["CLONED_DIR"])
+    repo, dvc_fs = initialize_dvc_and_repo(config["CLONED_DIR"])
 
     # Add the appended file to DVC
-    add_file_to_dvc(target_csv)
+    add_file_to_dvc_fs(dvc_fs, target_csv)
     
     # Push changes to the remote DVC repository
-    push_data_to_dvc(config["REMOTE_NAME"])
+    push_data_to_dvc_fs(dvc_fs, config["REMOTE_NAME"])
 
     # Commit changes to Git and push to GitHub for the updated .dvc file
     commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
