@@ -6,6 +6,7 @@ from minio.error import BucketAlreadyOwnedByYou, BucketAlreadyExists
 import requests
 import logging
 from dvc.api import DVC
+import requests
 
 app = Flask(__name__)
 app.config.from_pyfile('config.py')  # Load configuration from a config file
@@ -94,11 +95,20 @@ def configure_dvc_remote(dvc, remote_name, remote_url, minio_url, access_key, se
         logger.info(f"Successfully configured Minio bucket as DVC remote repository: {remote_name}")
         return remote_name
     except Exception as e:
-        logger.error(f'Failed to configure DVC remote: {e}')
-        raise
+        return jsonify({'error': f'Failed to configure DVC remote: {e}'}), 400
 
-# Function to push data to remote DVC repository
-def push_data_to_dvc(dvc, remote_name):
+# Route to append data from one CSV file to the target CSV file (the file added to DVC)
+@app.route('/append_csv', methods=['POST'])
+def append_csv():
+    global cloned_dir, dvc_file_path  # Access the global variables
+
+    # Get the source CSV file path from the request JSON
+    source_csv = request.json.get('source_csv')
+    
+    # Use the target CSV file path as the file added to DVC in the `/add_file` route
+    target_csv = dvc_file_path
+    
+    # Perform dvc pull in the local directory to ensure local data is up-to-date with the remote repository
     try:
         dvc.push(remote_name)
         logger.info("Successfully pushed data to remote DVC repository")
@@ -175,7 +185,7 @@ def init():
     update_dvc_file_and_push(repo, dvc_file_path_ext, repo.remotes.origin)
 
     return jsonify({
-        'message': 'Successfully initialized the app, downloaded file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.'
+        'message': f'Successfully appended data from {source_csv} to {target_csv}, added the file to DVC, and pushed changes to remote repository.'
     }), 200
 
 if __name__ == '__main__':
