@@ -19,7 +19,8 @@ dvc_file_name = 'init_dataset.csv'  # Define dvc_file_name as 'init_dataset.csv'
 def home():
     return "Hello from Flask app"
 
-# Change the /add_file route to /init
+# Route to clone a Git repository, initialize DVC, add a file to DVC, commit changes to Git,
+# and configure a Minio bucket as the DVC remote repository.
 @app.route('/init', methods=['POST'])
 def init():
     global cloned_dir, dvc_file_dir, dvc_file_name  # Declare the global variables to modify them
@@ -95,7 +96,7 @@ def init():
     # Add the .dvc and .gitignore files to Git and commit the changes
     try:
         # Get the full path for the .dvc file (including cloned directory)
-        dvc_file_path_ext = os.path.join(cloned_dir, f"{dvc_file_path}.dvc")
+        dvc_file_path_ext = os.path.join(cloned_dir, f"{dvc_file_dir}/{dvc_file_name}.dvc")
         
         # Get the full path for the .gitignore file (including cloned directory and DVC file directory)
         gitignore_path = os.path.join(cloned_dir, dvc_file_dir, '.gitignore')
@@ -118,7 +119,6 @@ def init():
         # Push the changes to GitHub
         origin.push()
         print(f'Successfully pushed changes to GitHub repository')
-    
     except Exception as e:
         return jsonify({'error': f'Failed to commit changes to Git or push to GitHub: {e}'}), 400
     
@@ -188,7 +188,7 @@ def init():
         else:
             return jsonify({'error': f'dvc push failed: {dvc_push_result.stderr}'}), 400
         
-        # After pushing data to DVC repository, add, commit, and push the changes of the updated .dvc file to the GitHub repository
+        # After pushing data to DVC repository, add, commit, and push changes of the updated .dvc file to the GitHub repository
         # Add the updated .dvc file to Git
         repo.index.add([dvc_file_path_ext])
         
@@ -207,5 +207,90 @@ def init():
         'message': f'Successfully initialized the app, downloaded file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.'
     }), 200
 
+# Route to append data from one CSV file to the target CSV file (the file added to DVC)
+@app.route('/append_csv', methods=['POST'])
+def append_csv():
+    global cloned_dir, dvc_file_dir, dvc_file_name  # Access the global variables
+
+    # Get the source CSV file path from the request JSON
+    source_csv = request.json.get('source_csv')
+    
+    # Specify the target CSV file path as the file added to DVC in the `/init` route
+    target_csv = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
+    
+    # Perform dvc pull in the local directory to ensure local data is up-to-date with the remote repository
+    try:
+        dvc_pull_result = subprocess.run(['dvc', 'pull'], cwd=cloned_dir, capture_output=True, text=True)
+        
+        if dvc_pull_result.returncode == 0:
+            print("Successfully pulled data from remote DVC repository")
+        else:
+            return jsonify({'error': f'dvc pull failed: {dvc_pull_result.stderr}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to perform dvc pull: {e}'}), 400
+    
+    # Append data from the source CSV file to the target CSV file
+    try:
+        # Read the source CSV file
+        with open(source_csv, 'r') as source_file:
+            reader = csv.reader(source_file)
+            
+            # Append the rows from the source file to the target file
+            with open(target_csv, 'a', newline='') as target_file:
+                writer = csv.writer(target_file)
+                
+                for row in reader:
+                    writer.writerow(row)
+        
+        print(f"Successfully appended data from {source_csv} to {target_csv}.")
+    except Exception as e:
+        return jsonify({'error': f'Failed to append data: {e}'}), 400
+    
+    # Add the appended file to DVC to track the changes
+    try:
+        dvc_add_result = subprocess.run(['dvc', 'add', target_csv], cwd=cloned_dir, capture_output=True, text=True)
+        
+        if dvc_add_result.returncode == 0:
+            print(f"Successfully added the appended file {target_csv} to DVC.")
+        else:
+            return jsonify({'error': f'dvc add failed: {dvc_add_result.stderr}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to add file to DVC: {e}'}), 400
+    
+    # Perform dvc push in the cloned directory to push the changes to the remote repository
+    try:
+        dvc_push_result = subprocess.run(['dvc', 'push'], cwd=cloned_dir, capture_output=True, text=True)
+        
+        if dvc_push_result.returncode == 0:
+            print("Successfully pushed changes to remote DVC repository.")
+        else:
+            return jsonify({'error': f'dvc push failed: {dvc_push_result.stderr}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to push changes to DVC remote: {e}'}), 400
+    
+    # After pushing changes to the DVC repository, add, commit, and push changes of the updated .dvc file to GitHub repository
+    try:
+        # Define the full path of the .dvc file
+        dvc_file_path_ext = os.path.join(cloned_dir, f"{dvc_file_dir}/{dvc_file_name}.dvc")
+        
+        # Add the updated .dvc file to Git
+        repo = Repo(cloned_dir)
+        repo.index.add([dvc_file_path_ext])
+        
+        # Commit the changes
+        repo.index.commit('Update .dvc file')
+        print(f'Successfully committed the updated .dvc file to Git')
+        
+        # Push the changes to GitHub
+        origin = repo.remotes.origin
+        origin.push()
+        print('Successfully pushed changes to GitHub repository')
+    except Exception as e:
+        return jsonify({'error': f'Failed to add, commit, or push changes to GitHub: {e}'}), 400
+    
+    return jsonify({
+        'message': f'Successfully appended data from {source_csv} to {target_csv}, added the file to DVC, and pushed changes to remote repository and GitHub.'
+    }), 200
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
