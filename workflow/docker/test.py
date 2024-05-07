@@ -257,8 +257,12 @@ def init():
     # Add the file to DVC using the relative file path
     add_file_to_dvc(config["CLONED_DIR"], relative_file_path)
 
-    # Commit changes to Git and push to GitHub
-    commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
+    # Use relative paths for the `.dvc` and `.gitignore` files when committing and pushing changes to Git
+    relative_dvc_file_path = f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc"
+    relative_gitignore_path = f"{config['DVC_FILE_DIR']}/.gitignore"
+
+    # Commit changes to Git and push to GitHub using relative paths
+    commit_and_push_changes(repo, [relative_dvc_file_path, relative_gitignore_path], COMMIT_MSG_INIT)
 
     # Set up Minio client and create a bucket if needed
     client = setup_minio_client(config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"], config["BUCKET_NAME"])
