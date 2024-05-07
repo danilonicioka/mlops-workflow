@@ -8,7 +8,7 @@ import logging
 from subprocess import run, CalledProcessError
 from dotenv import load_dotenv
 
-# Load environment variables from an .env file
+# Load environment variables from an `.env` file
 load_dotenv()
 
 # Flask application setup
@@ -57,9 +57,9 @@ def handle_dvc_errors(func):
 
 def setup_minio_client(minio_url, access_key, secret_key, bucket_name):
     """Create a Minio client and ensure the bucket exists."""
-    # Initialize Minio client
+    # Initialize Minio client with just the base URL (without path)
     client = Minio(
-        f'http://{minio_url}',
+        minio_url,  # Ensure minio_url does not include a path, only the base URL (e.g., http://localhost:9000)
         access_key=access_key,
         secret_key=secret_key,
         secure=False  # Minio is using HTTP on localhost:9000
@@ -85,17 +85,15 @@ def initialize_dvc_and_repo(cloned_dir):
     logger.info(f"Successfully initialized DVC in {cloned_dir}")
     return repo
 
-def clone_repository(repo_url, cloned_dir, branch_name):
-    """Clone the Git repository from the specified URL and branch."""
-    try:
-        # Clone the repository
-        repo = Repo.clone_from(repo_url, cloned_dir, branch=branch_name)
-        logger.info(f"Successfully cloned repository from {repo_url} to {cloned_dir}")
-        return repo
-    except Exception as e:
-        # Log and raise any cloning errors
-        logger.error(f"Failed to clone repository: {e}")
-        raise
+def clone_repository_with_token(repo_url, cloned_dir, github_username, github_token):
+    """Clone a Git repository using a GitHub token in the URL."""
+    # Construct the URL with the GitHub username and token
+    url_with_token = f"https://{github_username}:{github_token}@{repo_url.split('//')[1]}"
+    
+    # Clone the repository from the 'main' branch
+    repo = Repo.clone_from(url_with_token, cloned_dir, branch='main')
+    logger.info(f"Successfully cloned repository from {url_with_token} to {cloned_dir}")
+    return repo
 
 def download_file(file_url, local_file_path):
     """Download a file from a given URL and save it locally."""
@@ -131,7 +129,7 @@ def add_file_to_dvc(cloned_dir, dvc_file_path):
         raise Exception(f'Failed to add file to DVC: {e.stderr}')
 
 def commit_and_push_changes(repo, file_paths, commit_message):
-    """Commit changes to Git and push them to GitHub."""
+    """Commit changes to Git and push them to the 'tests' branch in GitHub."""
     try:
         # Add specified file paths to the Git index
         repo.index.add(file_paths)
@@ -140,19 +138,10 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         repo.index.commit(commit_message)
         logger.info(f'Successfully committed changes to Git for files: {file_paths}')
         
-        # Push changes to GitHub
+        # Push changes to the 'tests' branch in GitHub
         origin = repo.remotes.origin
-        github_username = config["GITHUB_USERNAME"]
-        github_token = config["GITHUB_TOKEN"]
-        
-        # Check if the repository URL starts with 'https://'
-        origin_url = origin.url
-        if not origin_url.startswith('https://'):
-            origin.set_url(f"https://{github_username}:{github_token}@{config['REPO_URL']}")
-        
-        # Push changes to GitHub
-        origin.push()
-        logger.info('Successfully pushed changes to GitHub repository')
+        origin.push(refspec='HEAD:refs/heads/tests')  # Push changes to the 'tests' branch
+        logger.info('Successfully pushed changes to GitHub on the "tests" branch')
     except Exception as e:
         # Log and raise any errors
         logger.error(f'Failed to commit changes to Git or push to GitHub: {e}')
@@ -251,8 +240,10 @@ def init():
     # Define the local file path
     local_file_path = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
 
-    # Clone the repository
-    repo = clone_repository(config["REPO_URL"], config["CLONED_DIR"], config["BRANCH_NAME"])
+    # Clone the repository from the main branch
+    repo = clone_repository_with_token(
+        config["REPO_URL"], config["CLONED_DIR"], config["GITHUB_USERNAME"], config["GITHUB_TOKEN"]
+    )
 
     # Download the file
     download_file(config["FILE_URL"], local_file_path)
@@ -270,7 +261,7 @@ def init():
     relative_dvc_file_path = f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc"
     relative_gitignore_path = f"{config['DVC_FILE_DIR']}/.gitignore"
 
-    # Commit changes to Git and push to GitHub using relative paths
+    # Commit changes to Git and push to the 'tests' branch in GitHub using relative paths
     commit_and_push_changes(repo, [relative_dvc_file_path, relative_gitignore_path], COMMIT_MSG_INIT)
 
     # Set up Minio client and create a bucket if needed
