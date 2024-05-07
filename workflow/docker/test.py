@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration variables
 config = {
-    "REPO_URL": os.environ.get('REPO_URL', 'github.com/danilonicioka/mlops-workflow.git'),
+    "REPO_URL": os.environ.get('REPO_URL', 'https://github.com/danilonicioka/mlops-workflow.git'),
     "CLONED_DIR": os.environ.get('CLONED_DIR', 'mlops-workflow'),
     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
     "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
@@ -141,7 +141,7 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         origin = repo.remotes.origin
         github_username = config["GITHUB_USERNAME"]
         github_token = config["GITHUB_TOKEN"]
-        origin.set_url(f"https://{github_username}:{github_token}@{config['REPO_URL']}")
+        origin.set_url(f"{github_username}:{github_token}@{config['REPO_URL']}")
         origin.push()
         logger.info('Successfully pushed changes to GitHub repository')
     except Exception as e:
