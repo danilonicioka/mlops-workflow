@@ -141,7 +141,14 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         origin = repo.remotes.origin
         github_username = config["GITHUB_USERNAME"]
         github_token = config["GITHUB_TOKEN"]
-        origin.set_url(f"{github_username}:{github_token}@{config['REPO_URL']}")
+        
+        # Set the remote URL only if the origin URL doesn't already contain the username and token
+        origin_url = origin.url
+        # Check if the repository URL starts with 'https://'
+        if not origin_url.startswith('https://'):
+            origin.set_url(f"https://{github_username}:{github_token}@{config['REPO_URL']}")
+        
+        # Push changes to GitHub
         origin.push()
         logger.info('Successfully pushed changes to GitHub repository')
     except Exception as e:
