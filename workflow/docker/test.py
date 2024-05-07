@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration variables
 config = {
-    "REPO_URL": os.environ.get('REPO_URL', 'https://github.com/danilonicioka/mlops-workflow.git'),
+    "REPO_URL": os.environ.get('REPO_URL', 'github.com/danilonicioka/mlops-workflow.git'),
     "CLONED_DIR": os.environ.get('CLONED_DIR', 'mlops-workflow'),
     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
     "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
