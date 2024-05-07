@@ -6,6 +6,10 @@ import csv
 import requests
 import logging
 from subprocess import run, CalledProcessError
+from dotenv import load_dotenv
+
+# Load environment variables from an .env file
+load_dotenv()
 
 # Flask application setup
 app = Flask(__name__)
@@ -21,7 +25,7 @@ config = {
     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
     "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
     "DVC_FILE_NAME": os.environ.get('DVC_FILE_NAME', 'init_dataset.csv'),
-    "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'tests'),
+    "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'main'),
     "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
     "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
     "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
@@ -35,7 +39,6 @@ config = {
 DVC_FILE_PATH_EXT = os.path.join(config["CLONED_DIR"], f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc")
 GITIGNORE_PATH = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], '.gitignore')
 
-# Constants for commit messages
 COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 COMMIT_MSG_APPEND = 'Update .dvc file'
 
@@ -142,9 +145,8 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         github_username = config["GITHUB_USERNAME"]
         github_token = config["GITHUB_TOKEN"]
         
-        # Set the remote URL only if the origin URL doesn't already contain the username and token
-        origin_url = origin.url
         # Check if the repository URL starts with 'https://'
+        origin_url = origin.url
         if not origin_url.startswith('https://'):
             origin.set_url(f"https://{github_username}:{github_token}@{config['REPO_URL']}")
         
@@ -303,7 +305,7 @@ def append_csv():
     
     # Initialize DVC and Git repositories to get the `repo` object
     repo = initialize_dvc_and_repo(config["CLONED_DIR"])
-    
+
     # Add the appended file to DVC
     add_file_to_dvc(config["CLONED_DIR"], target_csv)
     
