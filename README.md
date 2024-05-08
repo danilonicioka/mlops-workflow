@@ -1,4 +1,14 @@
 mlops_worflow
+
+==============================
+Local run
+```
+k port-forward svc/minio-svc -n minio 9090 9000
+```
+```
+k port-forward svc/ml-pipeline-ui 3000:80
+```
+
 ==============================
 
 test from End to End Machine learning pipeline with MLOps tools
