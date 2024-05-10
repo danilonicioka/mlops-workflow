@@ -306,7 +306,7 @@ def append_csv():
     """Append data from the source CSV file to the target CSV file, then update DVC and Git."""
     if request.method == 'GET':
         # Render a form to allow the user to upload a CSV file
-        return render_template('submit_file.html')
+        return render_template('upload_form.html')
     
     elif request.method == 'POST':
         # Handle file upload and append data
@@ -339,8 +339,11 @@ def append_csv():
         # Open the existing Git repository
         repo = Repo(config["CLONED_DIR"])
 
-        # Add the appended file to DVC
-        add_file_to_dvc(config["CLONED_DIR"], target_csv_path)
+        # Determine the relative path of the target CSV file within the cloned directory
+        relative_target_csv_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        
+        # Add the appended file to DVC using the relative path
+        add_file_to_dvc(config["CLONED_DIR"], relative_target_csv_path)
         
         # Push changes to the remote DVC repository
         push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
@@ -355,7 +358,7 @@ def append_csv():
         return jsonify({
             'message': f'Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, and pushed changes to remote repository and GitHub.'
         }), 200
-    
+
 # Define the template folder (you can change the path as needed)
 app.template_folder = 'templates'
 
