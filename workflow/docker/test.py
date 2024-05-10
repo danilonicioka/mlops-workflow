@@ -284,7 +284,7 @@ def init():
     relative_gitignore_path = f"{config['DVC_FILE_DIR']}/.gitignore"
 
     # Commit changes to Git and push to the 'tests' branch in GitHub using relative paths
-    commit_and_push_changes(repo, [relative_dvc_file_path, relative_gitignore_path], COMMIT_MSG_INIT)
+    #commit_and_push_changes(repo, [relative_dvc_file_path, relative_gitignore_path], COMMIT_MSG_INIT)
 
     # Set up Minio client and create a bucket if needed
     client = setup_minio_client(config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"], config["BUCKET_NAME"])
