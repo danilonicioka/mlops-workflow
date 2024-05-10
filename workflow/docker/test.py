@@ -346,7 +346,7 @@ def append_csv():
         push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
         
         # Commit changes to Git and push to GitHub for the updated .dvc file
-        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
+        #commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
 
         # Clean up the temporary file after processing
         os.remove(source_csv_path)
