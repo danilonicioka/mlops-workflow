@@ -1,0 +1,15 @@
+<!-- upload_form.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload CSV File</title>
+</head>
+<body>
+    <h1>Upload CSV File</h1>
+    <form action="/append_csv" method="POST" enctype="multipart/form-data">
+        <label for="source_csv">Select CSV file:</label>
+        <input type="file" name="source_csv" id="source_csv" accept=".csv" required><br><br>
+        <input type="submit" value="Upload and Process">
+    </form>
+</body>
+</html>
