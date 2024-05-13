@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, get_flashed_messages
 from git import Repo
 import os
 from minio import Minio
@@ -13,6 +13,9 @@ load_dotenv()
 
 # Flask application setup
 app = Flask(__name__)
+
+# **Set the secret key**:
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -36,8 +39,8 @@ config = {
 }
 
 # File paths and commit messages constants
-DVC_FILE_PATH_EXT = os.path.join(config["CLONED_DIR"], f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc")
-GITIGNORE_PATH = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], '.gitignore')
+DVC_FILE_PATH_EXT = os.path.join(f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc")
+GITIGNORE_PATH = os.path.join(config["DVC_FILE_DIR"], '.gitignore')
 
 COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 COMMIT_MSG_APPEND = 'Update .dvc file'
@@ -55,6 +58,7 @@ def handle_dvc_errors(func):
             return jsonify({'error': str(e)}), 400
     return wrapper
 
+# Helper functions to initialize and manage Minio and DVC
 def setup_minio_client(minio_url, access_key, secret_key, bucket_name):
     """Create a Minio client and ensure the bucket exists."""
     # Initialize Minio client with just the base URL (without path)
@@ -210,11 +214,6 @@ def push_data_to_dvc(cloned_dir, remote_name):
         logger.error(f'dvc push failed: {e.stderr}')
         raise Exception(f'dvc push failed: {e.stderr}')
 
-# def perform_dvc_pull(cloned_dir):
-#     """Perform a DVC pull to synchronize local data with the remote repository."""
-#     # Run the `dvc pull` command
-#     run(['dvc', 'pull'], cwd=cloned_dir, capture_output=True, text=True, check=True)
-#     logger.info("Successfully pulled data from remote DVC repository")
 def perform_dvc_pull(cloned_dir):
     """Perform a DVC pull to synchronize local data with the remote repository."""
     try:
@@ -252,49 +251,58 @@ def append_csv_data(source_csv, target_csv):
 
 @app.route('/')
 def home():
-    """Route to return a welcome message."""
-    return "Hello from Flask app"
+    """Route to render the home page with buttons to navigate to /init and /append_csv routes."""
+    # Check for flashed messages
+    success_message = get_flashed_messages()
+    # Render the home.html template with the success message
+    return render_template('home.html', success_message=success_message)
 
 @app.route('/init', methods=['GET'])
 def init():
     """Initialize the application by cloning the repository, downloading file, and setting up DVC and Git."""
-    # Define the target CSV file path using the dvc_file_name
-    target_csv_path = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+    try:
+        # Define the target CSV file path as dataset.csv in the DVC file directory
+        target_csv_path = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
 
-    # Clone the repository from the tests branch
-    repo = clone_repository_with_token(
-        config["REPO_URL"], config["CLONED_DIR"], config["BRANCH_NAME"],
-        config["GITHUB_USERNAME"], config["GITHUB_TOKEN"]
-    )
+        # Clone the repository from the tests branch
+        repo = clone_repository_with_token(
+            config["REPO_URL"], config["CLONED_DIR"], config["BRANCH_NAME"],
+            config["GITHUB_USERNAME"], config["GITHUB_TOKEN"]
+        )
 
-    # Download the file and save it as the target CSV file
-    download_file(config["FILE_URL"], target_csv_path)
+        # Download the file and save it as the target CSV file
+        download_file(config["FILE_URL"], target_csv_path)
 
-    # Initialize DVC and Git repositories
-    repo = initialize_dvc_and_repo(config["CLONED_DIR"])
+        # Initialize DVC and Git repositories
+        repo = initialize_dvc_and_repo(config["CLONED_DIR"])
 
-    # Specify the relative path to the target CSV file
-    relative_target_csv_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
-    
-    # Add the file to DVC using the relative path
-    add_file_to_dvc(config["CLONED_DIR"], relative_target_csv_path)
-    
-    # Commit changes to Git and push them to the 'tests' branch in GitHub using relative paths
-    #commit_and_push_changes(repo, [relative_target_csv_path + '.dvc', GITIGNORE_PATH], COMMIT_MSG_INIT)
+        # Specify the relative path to the target CSV file
+        relative_target_csv_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        
+        # Add the file to DVC using the relative path
+        add_file_to_dvc(config["CLONED_DIR"], relative_target_csv_path)
+        
+        # Commit changes to Git and push them to the 'tests' branch in GitHub using relative paths
+        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
 
-    # Set up Minio client and create a bucket if needed
-    client = setup_minio_client(config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"], config["BUCKET_NAME"])
+        # Set up Minio client and create a bucket if needed
+        client = setup_minio_client(config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"], config["BUCKET_NAME"])
 
-    # Configure Minio as the remote DVC repository
-    remote_url = f's3://{config["BUCKET_NAME"]}'
-    configure_dvc_remote(config["CLONED_DIR"], config["REMOTE_NAME"], remote_url, config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"])
+        # Configure Minio as the remote DVC repository
+        remote_url = f's3://{config["BUCKET_NAME"]}'
+        configure_dvc_remote(config["CLONED_DIR"], config["REMOTE_NAME"], remote_url, config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"])
 
-    # Push data to remote DVC repository
-    push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
+        # Push data to remote DVC repository
+        push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
 
-    return jsonify({
-        'message': 'Successfully initialized the app, downloaded file as the target CSV file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.'
-    }), 200
+        # Flash a success message and redirect to the home page
+        flash('Successfully initialized the app, downloaded file as the target CSV file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.')
+        return redirect(url_for('home'))
+
+    except Exception as e:
+        # Handle and log exceptions
+        logger.error(f'Failed to initialize the application: {e}')
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/append_csv', methods=['GET', 'POST'])
 @handle_dvc_errors
@@ -345,15 +353,17 @@ def append_csv():
         push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
         
         # Commit changes to Git and push to GitHub for the updated .dvc file
-        #commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
+        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
 
+        # Flash a success message
+        flash('Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, and pushed changes to the remote repository.')
+        
         # Clean up the temporary file after processing
         os.remove(source_csv_path)
         logger.info(f"Temporary CSV file {source_csv_path} has been removed.")
         
-        return jsonify({
-            'message': f'Successfully appended data from the uploaded CSV file to the target CSV file named {config["DVC_FILE_NAME"]}, added the file to DVC, and pushed changes to remote repository and GitHub.'
-        }), 200
+        # Redirect to the home page
+        return redirect(url_for('home'))
 
 # Define the template folder (you can change the path as needed)
 app.template_folder = 'templates'
