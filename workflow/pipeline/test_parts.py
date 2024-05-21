@@ -19,11 +19,11 @@ PIPELINE_NAME = "Clone_and_Pull_Pipeline"
 KFP_HOST = "http://localhost:3000"  # KFP host URL
 
 # Define DVC remote configuration variables
-REMOTE_NAME = "my_dvc_remote"
-REMOTE_URL = os.getenv("DVC_REMOTE_URL")
-MINIO_URL = os.getenv("MINIO_URL")
-ACCESS_KEY = os.getenv("DVC_ACCESS_KEY")
-SECRET_KEY = os.getenv("DVC_SECRET_KEY")
+REMOTE_NAME = "minio_remote"
+REMOTE_URL = "s3://dvc-data"
+MINIO_URL = "localhost:9000"
+ACCESS_KEY = os.getenv("ACCESS_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # Define a KFP component factory function for cloning repository with token
 @dsl.component(packages_to_install=['gitpython'])
