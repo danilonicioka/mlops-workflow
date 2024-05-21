@@ -118,8 +118,8 @@ def clone_repo_and_dvc_pull(
             return f"Error occurred during dvc pull: {e}"
 
     # Call the functions
-    configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     clone_result = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token)
+    configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir)
     
     return f"{configure_result}, {clone_result}, {dvc_pull_result}"
