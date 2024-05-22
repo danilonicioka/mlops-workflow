@@ -59,7 +59,7 @@ deploymentSpec:
           \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
           \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
           \  python3 -m pip install --quiet --no-warn-script-location 'gitpython'\
-          \ && \"$0\" \"$@\"\n"
+          \ 'dvc' && \"$0\" \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -117,10 +117,10 @@ deploymentSpec:
           \n            # Log successful operation\n            return \"Successfully\
           \ pulled data from remote DVC repository\"\n\n        except Exception as\
           \ e:\n            # Log and handle the error\n            return f\"Error\
-          \ occurred during dvc pull: {e}\"\n\n    # Call the functions\n    configure_result\
-          \ = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url,\
-          \ access_key, secret_key)\n    clone_result = clone_repository_with_token(repo_url,\
-          \ cloned_dir, branch_name, github_username, github_token)\n    dvc_pull_result\
+          \ occurred during dvc pull: {e}\"\n\n    # Call the functions\n    clone_result\
+          \ = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username,\
+          \ github_token)\n    configure_result = configure_dvc_remote(cloned_dir,\
+          \ remote_name, remote_url, minio_url, access_key, secret_key)\n    dvc_pull_result\
           \ = perform_dvc_pull(cloned_dir)\n\n    return f\"{configure_result}, {clone_result},\
           \ {dvc_pull_result}\"\n\n"
         image: python:3.7

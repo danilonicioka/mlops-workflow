@@ -6,3 +6,4 @@ Werkzeug==3.0.2
 gitpython=3.1.43
 requests=2.31.0
 dvc-s3==3.0.1
+dvc==3.42.0
