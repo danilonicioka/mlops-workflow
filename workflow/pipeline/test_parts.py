@@ -122,7 +122,7 @@ def clone_repo_and_dvc_pull(
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir)
     
-    return f"{configure_result}, {clone_result}, {dvc_pull_result}"
+    return f"{clone_result}, {configure_result}, {dvc_pull_result}"
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -132,7 +132,7 @@ kfp.compiler.Compiler().compile(
 
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
-client.create_run_from_pipeline_package(
+client.create_run_from_pipeline_func(
     pipeline_filename,
     arguments={
         'repo_url': REPO_URL,
