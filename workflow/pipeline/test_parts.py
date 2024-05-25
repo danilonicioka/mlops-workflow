@@ -124,16 +124,42 @@ def clone_repo_and_dvc_pull(
     
     return f"{clone_result}, {configure_result}, {dvc_pull_result}"
 
+@dsl.pipeline
+def my_pipeline(
+    repo_url: str,
+    cloned_dir: str,
+    branch_name: str,
+    github_username: str,
+    github_token: str,
+    remote_name: str,
+    remote_url: str,
+    minio_url: str,
+    access_key: str,
+    secret_key: str
+) -> str:
+    clone_repo_and_dvc_pull_task = clone_repo_and_dvc_pull(
+        repo_url=repo_url,
+        cloned_dir=cloned_dir,
+        branch_name=branch_name,
+        github_username=github_username,
+        github_token=github_token,
+        remote_name=remote_name,
+        remote_url=remote_url,
+        minio_url=minio_url,
+        access_key=access_key,
+        secret_key=secret_key)
+    return clone_repo_and_dvc_pull_task.output
+
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
 kfp.compiler.Compiler().compile(
-    pipeline_func=clone_repo_and_dvc_pull,
+    pipeline_func=my_pipeline,
     package_path=pipeline_filename)
 
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 client.create_run_from_pipeline_func(
-    pipeline_filename,
+    my_pipeline,
     arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
