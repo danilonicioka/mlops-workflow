@@ -148,7 +148,6 @@ def my_pipeline(
         minio_url=minio_url,
         access_key=access_key,
         secret_key=secret_key)
-    clone_repo_and_dvc_pull_task.enable_caching = False
     return clone_repo_and_dvc_pull_task.output
 
 # Compile the pipeline
@@ -161,6 +160,7 @@ kfp.compiler.Compiler().compile(
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 client.create_run_from_pipeline_func(
     my_pipeline,
+    enable_caching=False,
     arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
