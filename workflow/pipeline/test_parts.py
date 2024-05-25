@@ -148,6 +148,7 @@ def my_pipeline(
         minio_url=minio_url,
         access_key=access_key,
         secret_key=secret_key)
+    clone_repo_and_dvc_pull_task.enable_caching = False
     return clone_repo_and_dvc_pull_task.output
 
 # Compile the pipeline
