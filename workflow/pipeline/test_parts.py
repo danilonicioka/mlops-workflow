@@ -26,7 +26,7 @@ ACCESS_KEY = os.getenv("ACCESS_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # Define a KFP component factory function for cloning repository with token
-@dsl.component(packages_to_install=['gitpython', 'dvc==3.42.0'])
+@dsl.component(packages_to_install=['gitpython', 'dvc==2.10.2'])
 def clone_repo_and_dvc_pull(
     repo_url: str,
     cloned_dir: str,
