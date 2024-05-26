@@ -6,5 +6,5 @@ python-dotenv==1.0.1
 Werkzeug==3.0.2
 gitpython==3.1.43
 requests==2.31.0
-dvc-s3
+dvc-s3==2.22.0
 fsspec==2022.11.0

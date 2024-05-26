@@ -98,11 +98,11 @@ def clone_repo_and_dvc_pull(
             # Log and raise any errors
             return f'Failed to configure DVC remote: {e.stderr}'
 
-    def perform_dvc_pull(cloned_dir):
+    def perform_dvc_pull(cloned_dir, remote_name):
         """Perform a DVC pull to synchronize local data with the remote repository."""
         try:
             # Run the `dvc pull` command
-            result = run(['dvc', 'pull'], cwd=cloned_dir, capture_output=True, text=True)
+            result = run(['dvc', 'pull', '-r', remote_name], cwd=cloned_dir, capture_output=True, text=True)
             
             # Check if the command executed successfully
             if result.returncode != 0:
@@ -120,7 +120,7 @@ def clone_repo_and_dvc_pull(
     # Call the functions
     clone_result = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token)
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
-    dvc_pull_result = perform_dvc_pull(cloned_dir)
+    dvc_pull_result = perform_dvc_pull(cloned_dir, remote_name)
     
     return f"{clone_result}, {configure_result}, {dvc_pull_result}"
 
