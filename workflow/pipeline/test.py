@@ -138,7 +138,6 @@ preprocess_data_component = create_component_from_func(
 # Save the component spec to a YAML file if needed
 preprocess_data_component.save('preprocess_data_component.yaml')
 
-## Data preparation =================================================================================
 import os
 from typing import Tuple
 
