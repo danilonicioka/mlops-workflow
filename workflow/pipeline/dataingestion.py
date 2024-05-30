@@ -30,7 +30,7 @@ DVC_FILE_NAME = 'dataset.csv'
 
 # Define a KFP component factory function for cloning repository with token
 @dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
-def clone_repo_and_dvc_pull(
+def data_ingestion(
     repo_url: str,
     cloned_dir: str,
     branch_name: str,
@@ -146,8 +146,8 @@ def my_pipeline(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> str:
-    clone_repo_and_dvc_pull_task = clone_repo_and_dvc_pull(
+) -> NamedTuple:
+    data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
         branch_name=branch_name,
@@ -158,8 +158,10 @@ def my_pipeline(
         minio_url=minio_url,
         access_key=access_key,
         secret_key=secret_key)
-    dataset = clone_repo_and_dvc_pull_task.outputs['dataset']
-    return clone_repo_and_dvc_pull_task.outputs['result']
+    result = data_ingestion_task.outputs['result']
+    dataset = data_ingestion_task.outputs['dataset']
+    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
+    return output(result, dataset)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"

@@ -2,10 +2,16 @@ import kfp
 from kfp import dsl
 import os
 from dotenv import load_dotenv
-from typing import Tuple
+from typing import NamedTuple
+import torch
 
 @dsl.component(base_image="python:3.12.3",packages_to_install=['pandas', 'numpy', 'torch'])
-def datapreparation(dataset: str, data_path: str, test_size: float = 0.2, random_state: int = 42) -> Tuple[str, str]:
+def datapreparation(
+    dataset: str, 
+    data_path: str, 
+    test_size: float = 0.2, 
+    random_state: int = 42
+    ) -> NamedTuple:
     import pandas as pd
     import numpy as np
     from sklearn.model_selection import train_test_split
@@ -55,6 +61,14 @@ def datapreparation(dataset: str, data_path: str, test_size: float = 0.2, random
 
     X_train, X_test, y_train, y_test = train_test_split(X,
                                                         y,
-                                                        test_size=0.2,
-                                                        random_state=42
+                                                        test_size=test_size,
+                                                        random_state=random_state
     )
+
+    output = NamedTuple('Outputs', 
+                        [('X_train', torch.Tensor), 
+                         ('X_test', torch.Tensor), 
+                         ('y_train', torch.Tensor), 
+                         ('y_test', torch.Tensor)])
+    
+    return output(X_train, X_test, y_train, y_test)

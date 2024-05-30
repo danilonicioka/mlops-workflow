@@ -2,6 +2,7 @@ import kfp
 from kfp import dsl
 import os
 from dotenv import load_dotenv
+from typing import NamedTuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,10 +25,12 @@ REMOTE_URL = "s3://dvc-data"
 MINIO_URL = "http://minio-svc.minio:9000"
 ACCESS_KEY = os.getenv("ACCESS_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
+DVC_FILE_DIR = 'data/external'
+DVC_FILE_NAME = 'dataset.csv'
 
 # Define a KFP component factory function for cloning repository with token
 @dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
-def clone_repo_and_dvc_pull(
+def data_ingestion(
     repo_url: str,
     cloned_dir: str,
     branch_name: str,
@@ -38,7 +41,7 @@ def clone_repo_and_dvc_pull(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> str:
+) -> NamedTuple:
     from git import Repo
     from subprocess import run, CalledProcessError
 
@@ -121,9 +124,16 @@ def clone_repo_and_dvc_pull(
     clone_result = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token)
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir, remote_name)
-    
-    return f"{clone_result}, {configure_result}, {dvc_pull_result}"
 
+    # Output dataset file
+        # Define the target CSV file path as dataset.csv in the DVC file directory
+    dataset_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
+
+    f = open(dataset_path, 'r')
+    dataset = f.read()
+    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
+    return output(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
+    
 @dsl.pipeline
 def my_pipeline(
     repo_url: str,
@@ -136,8 +146,8 @@ def my_pipeline(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> str:
-    clone_repo_and_dvc_pull_task = clone_repo_and_dvc_pull(
+) -> NamedTuple:
+    data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
         branch_name=branch_name,
@@ -148,7 +158,10 @@ def my_pipeline(
         minio_url=minio_url,
         access_key=access_key,
         secret_key=secret_key)
-    return clone_repo_and_dvc_pull_task.output
+    result = data_ingestion_task.outputs['result']
+    dataset = data_ingestion_task.outputs['dataset']
+    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
+    return output(result, dataset)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
