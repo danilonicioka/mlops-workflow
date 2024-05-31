@@ -16,7 +16,7 @@ REPO_URL = "https://github.com/danilonicioka/mlops-workflow.git"
 CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
-PIPELINE_NAME = "Clone_and_Pull_Pipeline"
+PIPELINE_NAME = "mlops"
 KFP_HOST = "http://localhost:3000"  # KFP host URL
 
 # Define DVC remote configuration variables
@@ -137,8 +137,6 @@ def data_ingestion(
     return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
     
 # Component for data preparation
-import torch
-
 @dsl.component(base_image="python:3.12.3", packages_to_install=['pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
 def data_preparation(
     dataset: str, 
@@ -234,7 +232,6 @@ def my_pipeline(
         dvc_file_name=dvc_file_name)
     data_ingestion_result = data_ingestion_task.outputs['result']
     data_ingestion_dataset = data_ingestion_task.outputs['dataset']
-    
     data_preparation_task = data_preparation(dataset=data_ingestion_dataset)
     data_preparation_result = data_preparation_task.outputs['result']
     X_train = data_preparation_task.outputs['X_train']
