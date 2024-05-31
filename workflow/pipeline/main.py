@@ -253,7 +253,7 @@ client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 # Create an experiment
 experiment = client.create_experiment(name='experiment', namespace='kubeflow')
 
-client.run_pipeline(experiment.id, 'mlops_pipeline', pipeline_filename, enable_caching=False,
+client.run_pipeline(pipeline_filename, enable_caching=False,
     params={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
