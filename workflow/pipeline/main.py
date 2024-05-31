@@ -28,7 +28,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
 
-# Define a KFP component factory function for cloning repository with token
+# Define a KFP component factory function for data ingestion
 @dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
 def data_ingestion(
     repo_url: str,
@@ -40,10 +40,13 @@ def data_ingestion(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
-) -> NamedTuple:
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str
+) -> NamedTuple('outputs', result=str, dataset=str):
     from git import Repo
     from subprocess import run, CalledProcessError
+    import os
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
@@ -127,13 +130,80 @@ def data_ingestion(
 
     # Output dataset file
         # Define the target CSV file path as dataset.csv in the DVC file directory
-    dataset_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
-
+    dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
     f = open(dataset_path, 'r')
     dataset = f.read()
-    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
-    return output(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
+    outputs = NamedTuple('outputs', result=str, dataset=str)
+    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
     
+# Component for data preparation
+import torch
+
+@dsl.component(base_image="python:3.12.3", packages_to_install=['pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
+def data_preparation(
+    dataset: str, 
+    data_path: str = 'dataset.csv', 
+    test_size: float = 0.2, 
+    random_state: int = 42
+    ) -> NamedTuple('outputs', result=str, X_train=torch.Tensor, X_test=torch.Tensor, y_train=torch.Tensor, y_test=torch.Tensor):
+    import pandas as pd
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+    from imblearn.over_sampling import SMOTE
+    from sklearn.preprocessing import StandardScaler
+    import torch
+
+    # Save the file content locally
+    with open(data_path, 'wb') as local_file:
+        local_file.write(dataset)
+
+    df = pd.read_csv(data_path)
+
+    # Handle null values and replace specific characters
+    #df = df.replace([' ', '-',np.nan], 0) # There are null values
+    df = df.replace([' ', '-', np.nan], np.nan)
+
+    # Selective columns for mean calculation
+    columns_to_convert = [
+        'CQI1', 'CQI2', 'CQI3', 'cSTD CQI', 'cMajority', 'c25 P', 'c50 P', 'c75 P', 
+        'RSRP1', 'RSRP2', 'RSRP3', 'pMajority', 'p25 P', 'p50 P', 'p75 P', 
+        'RSRQ1', 'RSRQ2', 'RSRQ3', 'qMajority', 'q25 P', 'q50 P', 'q75 P', 
+        'SNR1', 'SNR2', 'SNR3', 'sMajority', 's25 P', 's50 P', 's75 P'
+    ]
+    df[columns_to_convert] = df[columns_to_convert].astype(float)
+
+    # Replace np.nan with mean values for selective columns
+    df[columns_to_convert] = df[columns_to_convert].fillna(df[columns_to_convert].mean())
+
+    # Convert 'Stall' column to numerical values
+    df['Stall'].replace({'Yes': 1, 'No': 0}, inplace=True)
+
+    X = df[columns_to_convert].values
+    y = df['Stall'].values
+
+    # Apply SMOTE for balancing the dataset
+    # oversample = SMOTE(random_state=random_state)
+    oversample = SMOTE()
+    X, y = oversample.fit_resample(X, y)
+
+    # Standardize the features
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    # Convert to torch tensors
+    X = torch.tensor(X, dtype=torch.float32)
+    y = torch.tensor(y, dtype=torch.float32)
+
+    # Split the dataset into train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+    outputs = NamedTuple('outputs', result=str, X_train=torch.Tensor, X_test=torch.Tensor, y_train=torch.Tensor, y_test=torch.Tensor)
+    result = "data prepararation done"
+
+    return outputs(result, X_train, X_test, y_train, y_test)
+
+#
+
 @dsl.pipeline
 def my_pipeline(
     repo_url: str,
@@ -145,8 +215,10 @@ def my_pipeline(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
-) -> NamedTuple:
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str
+) -> NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
@@ -157,11 +229,19 @@ def my_pipeline(
         remote_url=remote_url,
         minio_url=minio_url,
         access_key=access_key,
-        secret_key=secret_key)
-    result = data_ingestion_task.outputs['result']
-    dataset = data_ingestion_task.outputs['dataset']
-    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
-    return output(result, dataset)
+        secret_key=secret_key,
+        dvc_file_dir=dvc_file_dir,
+        dvc_file_name=dvc_file_name)
+    data_ingestion_result = data_ingestion_task.outputs['result']
+    data_ingestion_dataset = data_ingestion_task.outputs['dataset']
+    data_preparation_task = data_preparation(data_ingestion_dataset)
+    data_preparation_result = data_preparation_task.outputs['result']
+    X_train = data_preparation_task.outputs['X_train']
+    X_test = data_preparation_task.outputs['X_test']
+    y_train = data_preparation_task.outputs['y_train']
+    y_test = data_preparation_task.outputs['y_test']
+    pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str)
+    return pipe_outputs(data_ingestion_result, data_preparation_result)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -184,5 +264,7 @@ client.create_run_from_pipeline_func(
         'remote_url': REMOTE_URL,
         'minio_url': MINIO_URL,
         'access_key': ACCESS_KEY,
-        'secret_key': SECRET_KEY
+        'secret_key': SECRET_KEY,
+        'dvc_file_dir': DVC_FILE_DIR,
+        'dvc_file_name': DVC_FILE_NAME
     })

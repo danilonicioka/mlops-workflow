@@ -28,7 +28,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
 
-# Define a KFP component factory function for cloning repository with token
+# Define a KFP component factory function for data ingestion
 @dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
 def data_ingestion(
     repo_url: str,
