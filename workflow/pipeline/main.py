@@ -17,7 +17,7 @@ CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
 PIPELINE_NAME = "mlops"
-KFP_HOST = "http://localhost:3000"  # KFP host URL
+KFP_HOST = "http://localhost:3000/pipeline"  # KFP host URL
 
 # Define DVC remote configuration variables
 REMOTE_NAME = "minio_remote"
