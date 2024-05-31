@@ -234,7 +234,8 @@ def my_pipeline(
         dvc_file_name=dvc_file_name)
     data_ingestion_result = data_ingestion_task.outputs['result']
     data_ingestion_dataset = data_ingestion_task.outputs['dataset']
-    data_preparation_task = data_preparation(data_ingestion_dataset)
+    
+    data_preparation_task = data_preparation(dataset=data_ingestion_dataset)
     data_preparation_result = data_preparation_task.outputs['result']
     X_train = data_preparation_task.outputs['X_train']
     X_test = data_preparation_task.outputs['X_test']
