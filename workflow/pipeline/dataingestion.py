@@ -2,7 +2,7 @@ import kfp
 from kfp import dsl
 import os
 from dotenv import load_dotenv
-from typing import NamedTuple
+from typing import Tuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,7 +41,7 @@ def data_ingestion(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> NamedTuple('Outputs', [('result', str), ('dataset', str)]):
+) -> Tuple[str, str]:
     from git import Repo
     from subprocess import run, CalledProcessError
 
@@ -145,7 +145,7 @@ def my_pipeline(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> NamedTuple('Outputs', [('result', str), ('dataset', str)]):
+) -> Tuple[str, str]:
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
