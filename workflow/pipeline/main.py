@@ -27,6 +27,7 @@ ACCESS_KEY = os.getenv("ACCESS_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
+EXPERIMENT_ID = 'e33274eb-723d-4792-a9ee-019b1fa33431'
 
 # Define a KFP component factory function for data ingestion
 @dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
@@ -253,7 +254,7 @@ client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 # Create an experiment
 experiment = client.create_experiment(name='experiment', namespace='kubeflow')
 
-client.run_pipeline(job_name=PIPELINE_NAME, pipeline_package_path=pipeline_filename, enable_caching=False,
+client.run_pipeline(EXPERIMENT_ID, PIPELINE_NAME, pipeline_filename, enable_caching=False,
     params={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
