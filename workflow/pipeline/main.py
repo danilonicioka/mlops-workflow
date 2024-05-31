@@ -15,7 +15,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 REPO_URL = "https://github.com/danilonicioka/mlops-workflow.git"
 CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
-PIPELINE_ID = "my-pipeline-id"
+PIPELINE_ID = "0"
 PIPELINE_NAME = "mlops"
 KFP_HOST = "http://localhost:3000"  # KFP host URL
 
@@ -216,8 +216,23 @@ def my_pipeline(
     secret_key: str,
     dvc_file_dir: str,
     dvc_file_name: str
-) -> NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str):
-    data_ingestion_task = data_ingestion(
+) -> str:
+    # data_ingestion_task = data_ingestion(
+    #     repo_url=repo_url,
+    #     cloned_dir=cloned_dir,
+    #     branch_name=branch_name,
+    #     github_username=github_username,
+    #     github_token=github_token,
+    #     remote_name=remote_name,
+    #     remote_url=remote_url,
+    #     minio_url=minio_url,
+    #     access_key=access_key,
+    #     secret_key=secret_key,
+    #     dvc_file_dir=dvc_file_dir,
+    #     dvc_file_name=dvc_file_name)
+    # data_ingestion_result = data_ingestion_task.outputs['result']
+    # data_ingestion_dataset = data_ingestion_task.outputs['dataset']
+    data_preparation_task = data_preparation(dataset=data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
         branch_name=branch_name,
@@ -229,17 +244,14 @@ def my_pipeline(
         access_key=access_key,
         secret_key=secret_key,
         dvc_file_dir=dvc_file_dir,
-        dvc_file_name=dvc_file_name)
-    data_ingestion_result = data_ingestion_task.outputs['result']
-    data_ingestion_dataset = data_ingestion_task.outputs['dataset']
-    data_preparation_task = data_preparation(dataset=data_ingestion_dataset)
+        dvc_file_name=dvc_file_name).outputs['dataset'])
     data_preparation_result = data_preparation_task.outputs['result']
     X_train = data_preparation_task.outputs['X_train']
     X_test = data_preparation_task.outputs['X_test']
     y_train = data_preparation_task.outputs['y_train']
     y_test = data_preparation_task.outputs['y_test']
-    pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str)
-    return pipe_outputs(data_ingestion_result, data_preparation_result)
+    # pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str)
+    return data_preparation_result
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
