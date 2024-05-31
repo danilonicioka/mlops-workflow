@@ -40,7 +40,9 @@ def data_ingestion(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str
 ) -> NamedTuple('outputs', result=str, dataset=str):
     from git import Repo
     from subprocess import run, CalledProcessError
@@ -128,7 +130,7 @@ def data_ingestion(
 
     # Output dataset file
         # Define the target CSV file path as dataset.csv in the DVC file directory
-    dataset_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
+    dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
     f = open(dataset_path, 'r')
     dataset = f.read()
     outputs = NamedTuple('outputs', result=str, dataset=str)
@@ -145,7 +147,9 @@ def my_pipeline(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str
 ) -> NamedTuple('pipe_outputs', result=str, dataset=str):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
@@ -157,7 +161,9 @@ def my_pipeline(
         remote_url=remote_url,
         minio_url=minio_url,
         access_key=access_key,
-        secret_key=secret_key)
+        secret_key=secret_key,
+        dvc_file_dir=dvc_file_dir,
+        dvc_file_name=dvc_file_name)
     result = data_ingestion_task.outputs['result']
     dataset = data_ingestion_task.outputs['dataset']
     pipe_outputs = NamedTuple('pipe_outputs', result=str, dataset=str)
@@ -184,5 +190,7 @@ client.create_run_from_pipeline_func(
         'remote_url': REMOTE_URL,
         'minio_url': MINIO_URL,
         'access_key': ACCESS_KEY,
-        'secret_key': SECRET_KEY
+        'secret_key': SECRET_KEY,
+        'dvc_file_dir': DVC_FILE_DIR,
+        'dvc_file_name': DVC_FILE_NAME
     })
