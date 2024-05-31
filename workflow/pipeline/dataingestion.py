@@ -41,7 +41,7 @@ def data_ingestion(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> NamedTuple:
+) -> NamedTuple('Outputs', [('result', str), ('dataset', str)]):
     from git import Repo
     from subprocess import run, CalledProcessError
 
@@ -131,8 +131,7 @@ def data_ingestion(
 
     f = open(dataset_path, 'r')
     dataset = f.read()
-    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
-    return output(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
+    return (f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
     
 @dsl.pipeline
 def my_pipeline(
@@ -146,7 +145,7 @@ def my_pipeline(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> NamedTuple:
+) -> NamedTuple('Outputs', [('result', str), ('dataset', str)]):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
@@ -160,8 +159,7 @@ def my_pipeline(
         secret_key=secret_key)
     result = data_ingestion_task.outputs['result']
     dataset = data_ingestion_task.outputs['dataset']
-    output = NamedTuple('Outputs', [('result', str), ('dataset', str)])
-    return output(result, dataset)
+    return (result, dataset)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
