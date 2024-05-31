@@ -249,10 +249,12 @@ kfp.compiler.Compiler().compile(
 
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
-client.create_run_from_pipeline_func(
-    my_pipeline,
-    enable_caching=False,
-    arguments={
+
+# Create an experiment
+experiment = client.create_experiment('experiment')
+
+client.run_pipeline(experiment.id, 'mlops_pipeline', pipeline_filename, enable_caching=False,
+    params={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
         'branch_name': BRANCH_NAME,
