@@ -2,7 +2,7 @@ import kfp
 from kfp import dsl
 import os
 from dotenv import load_dotenv
-from typing import Tuple
+from typing import NamedTuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,7 +41,7 @@ def data_ingestion(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> Tuple[str, str]:
+) -> NamedTuple('outputs', result=str, dataset=str):
     from git import Repo
     from subprocess import run, CalledProcessError
 
@@ -128,10 +128,10 @@ def data_ingestion(
     # Output dataset file
         # Define the target CSV file path as dataset.csv in the DVC file directory
     dataset_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
-
     f = open(dataset_path, 'r')
     dataset = f.read()
-    return (f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
+    outputs = NamedTuple('outputs', result=str, dataset=str)
+    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
     
 @dsl.pipeline
 def my_pipeline(
@@ -145,7 +145,7 @@ def my_pipeline(
     minio_url: str,
     access_key: str,
     secret_key: str
-) -> Tuple[str, str]:
+) -> NamedTuple('pipe_outputs', result=str, dataset=str):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
@@ -159,7 +159,8 @@ def my_pipeline(
         secret_key=secret_key)
     result = data_ingestion_task.outputs['result']
     dataset = data_ingestion_task.outputs['dataset']
-    return (result, dataset)
+    pipe_outputs = NamedTuple('pipe_outputs', result=str, dataset=str)
+    return pipe_outputs(result, dataset)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
