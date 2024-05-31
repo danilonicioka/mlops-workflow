@@ -44,6 +44,7 @@ def data_ingestion(
 ) -> NamedTuple('outputs', result=str, dataset=str):
     from git import Repo
     from subprocess import run, CalledProcessError
+    import os
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
