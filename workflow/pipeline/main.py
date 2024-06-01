@@ -17,7 +17,7 @@ CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
 PIPELINE_NAME = "mlops"
-KFP_HOST = "http://localhost:3000/pipeline"  # KFP host URL
+KFP_HOST = "http://localhost:3000"  # KFP host URL
 
 # Define DVC remote configuration variables
 REMOTE_NAME = "minio_remote"
@@ -251,11 +251,8 @@ kfp.compiler.Compiler().compile(
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 
-# Create an experiment
-experiment = client.create_experiment(name='experiment', namespace='kubeflow')
-
-client.run_pipeline(EXPERIMENT_ID, PIPELINE_NAME, pipeline_filename, enable_caching=False,
-    params={
+client.create_run_from_pipeline_func(my_pipeline, enable_caching=False,
+    arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
         'branch_name': BRANCH_NAME,
