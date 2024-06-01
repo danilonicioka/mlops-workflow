@@ -1,15 +1,15 @@
 import kfp
 from kfp import dsl
 from typing import NamedTuple
-import torch
 
+# Component for data preparation
 @dsl.component(base_image="python:3.12.3", packages_to_install=['pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
 def data_preparation(
     dataset: str, 
     data_path: str = 'dataset.csv', 
     test_size: float = 0.2, 
     random_state: int = 42
-    ) -> NamedTuple('outputs', result=str, X_train=torch.Tensor, X_test=torch.Tensor, y_train=torch.Tensor, y_test=torch.Tensor):
+    ) -> NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list):
     import pandas as pd
     import numpy as np
     from sklearn.model_selection import train_test_split
@@ -61,7 +61,7 @@ def data_preparation(
     # Split the dataset into train and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-    result = "data preparation done"
+    outputs = NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list)
+    result = "data prepararation done"
 
-    outputs = NamedTuple('outputs', result=str, X_train=torch.Tensor, X_test=torch.Tensor, y_train=torch.Tensor, y_test=torch.Tensor)
     return outputs(result, X_train, X_test, y_train, y_test)
