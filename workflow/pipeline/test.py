@@ -188,6 +188,7 @@ def main(
     dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
     data_preparation_result, X_train, X_test, y_train, y_test = data_preparation(dataset_path)
     outputs = NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str,)
+    print("X_train:", X_train[:1],"\nX_train_shape:", X_train[:1].shape,"\nX_test:", X_test[:1],"\nX_test_shape:",X_test[:1].shape, "\ny_train:", y_train[:1],"\ny_test:", y_test[:1])
     return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", data_preparation_result)
 
 #
