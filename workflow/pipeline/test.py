@@ -33,7 +33,7 @@ TEST_SIZE = 0.2
 RANDOM_STATE = 42
 
 # Define a KFP component factory function for data ingestion
-@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython==3.1.43', 'dvc==3.51.1','dvc-s3==3.2.0', 'pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0+cu121', 'scikit-learn==1.2.2', 'imblearn==0.10.1'])
+@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython==3.1.43', 'dvc==3.51.1','dvc-s3==3.2.0', 'pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn==0.10.1'])
 def main(
     repo_url: str,
     cloned_dir: str,
