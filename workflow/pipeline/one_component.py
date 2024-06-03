@@ -33,7 +33,7 @@ TEST_SIZE = 0.2
 RANDOM_STATE = 42
 
 # Define a KFP component factory function for data ingestion
-@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0', 'pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
+@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython==3.1.43', 'dvc==3.51.1','dvc-s3==3.2.0', 'pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn==0.10.1'])
 def main(
     repo_url: str,
     cloned_dir: str,
@@ -188,11 +188,6 @@ def main(
     dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
     data_preparation_result, X_train, X_test, y_train, y_test = data_preparation(dataset_path)
     outputs = NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str,)
-
-    pack_versions = run(['pip', 'freeze'], capture_output=True, text=True, check=True)
-    print(pack_versions)
-    
-    print("X_train:", X_train[:1],"\nX_train_shape:", X_train[:1].shape,"\nX_test:", X_test[:1],"\nX_test_shape:",X_test[:1].shape, "\ny_train:", y_train[:1],"\ny_test:", y_test[:1])
     return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", data_preparation_result)
 
 #
