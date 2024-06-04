@@ -250,7 +250,10 @@ kfp.compiler.Compiler().compile(
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 
-client.create_run_from_pipeline_func(my_pipeline, enable_caching=False,
+client.create_run_from_pipeline_func(
+    my_pipeline, 
+    enable_caching=False, 
+    mode=dsl.PipelineExecutionMode.V2_COMPATIBLE,
     arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
