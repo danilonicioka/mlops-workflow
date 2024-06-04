@@ -47,7 +47,7 @@ def main(
     secret_key: str,
     dvc_file_dir: str,
     dvc_file_name: str
-) -> NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str):
+) -> NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str, model_training_result=str):
     from git import Repo
     from subprocess import run, CalledProcessError
     import os
@@ -57,6 +57,8 @@ def main(
     from imblearn.over_sampling import SMOTE
     from sklearn.preprocessing import StandardScaler
     import torch
+    from torch import nn
+    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
@@ -177,6 +179,113 @@ def main(
         result = "data prepararation done"
 
         return (result, X_train, X_test, y_train, y_test)
+    
+    def model_training(X_train, X_test, y_train, y_test, lr = 0.0001, epochs = 3500, seed = 42, print_every = 500):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Build model with non-linear activation function
+        class InterruptionModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer_1 = nn.Linear(in_features=29, out_features=200)
+                self.layer_2 = nn.Linear(in_features=200, out_features=100)
+                self.layer_3 = nn.Linear(in_features=100, out_features=1)
+                self.relu = nn.ReLU() # <- add in ReLU activation function
+                # Can also put sigmoid in the model
+                # This would mean you don't need to use it on the predictions
+                # self.sigmoid = nn.Sigmoid()
+
+            def forward(self, x):
+                # Intersperse the ReLU activation function between layers
+                return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
+
+        model_3 = InterruptionModel().to(device)
+        print(model_3)
+
+        # Setup loss and optimizer
+        loss_fn = nn.BCEWithLogitsLoss()
+        optimizer = torch.optim.Adam(model_3.parameters(), lr=lr)
+
+        def accuracy_fn(y_true, y_pred):
+            correct = torch.eq(y_true, y_pred).sum().item() # torch.eq() calculates where two tensors are equal
+            acc = (correct / len(y_pred)) * 100
+            return acc
+
+        # Fit the model
+        torch.manual_seed(seed)
+
+        # Assuming X_train, y_train, X_test, y_test are already defined and are tensors
+        X_train, y_train = X_train.to(device), y_train.to(device)
+        X_test, y_test = X_test.to(device), y_test.to(device)
+
+        for epoch in range(epochs):
+            # 1. Forward pass
+            #model_3.train()
+            y_logits = model_3(X_train).squeeze()
+            y_pred = torch.round(torch.sigmoid(y_logits)) # logits -> prediction probabilities -> prediction labels
+
+            # 2. Calculate loss and accuracy
+            loss = loss_fn(y_logits, y_train) # BCEWithLogitsLoss calculates loss using logits
+            acc = accuracy_fn(y_true=y_train, y_pred=y_pred)
+
+            # 3. Optimizer zero grad
+            optimizer.zero_grad()
+
+            # 4. Loss backward
+            loss.backward()
+
+            # 5. Optimizer step
+            optimizer.step()
+
+            ### Testing
+            model_3.eval()
+            with torch.no_grad():
+                # 1. Forward pass
+                test_logits = model_3(X_test).squeeze()
+                #print(test_logits.shape)
+                test_pred = torch.round(torch.sigmoid(test_logits)) # logits -> prediction probabilities -> prediction labels
+
+                # 2. Calculate loss and accuracy
+                test_loss = loss_fn(test_logits, y_test)
+                test_acc = accuracy_fn(y_true=y_test, y_pred=test_pred)
+
+            # Print out what's happening
+            if epoch % print_every == 0:
+                print(f"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f}, Test Accuracy: {test_acc:.2f}%")
+
+        # Evaluate the final model
+        model_3.eval()
+        with torch.no_grad():
+            y_preds = torch.round(torch.sigmoid(model_3(X_test))).squeeze()
+
+        predictions = y_preds.cpu().numpy() # if using cuda, otherwise y_pred.numpy()
+        true_labels = y_test.cpu().numpy()
+
+        print("=== Confusion Matrix ===")
+        print(confusion_matrix(true_labels, predictions))
+        print('\n')
+
+        print("=== Score ===")
+        accuracy = accuracy_score(true_labels, predictions)
+        print('Accuracy: %f' % accuracy)
+
+        precision = precision_score(true_labels, predictions, average='weighted')
+        print('Precision: %f' % precision)
+        recall = recall_score(true_labels, predictions, average='weighted')
+        print('Recall: %f' % recall)
+
+        microf1 = f1_score(true_labels, predictions, average='micro')
+        print('Micro F1 score: %f' % microf1)
+        macrof1 = f1_score(true_labels, predictions, average='macro')
+        print('Macro F1 score: %f' % macrof1)
+
+        target_names = ['No-Stall', 'Stall']
+
+        # Print precision-recall report
+        print(classification_report(true_labels, predictions, target_names=target_names))
+
+        model_training_result = "model training done"
+        return model_training_result
 
     # Call the functions
     clone_result = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token)
@@ -187,8 +296,9 @@ def main(
         # Define the target CSV file path as dataset.csv in the DVC file directory
     dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
     data_preparation_result, X_train, X_test, y_train, y_test = data_preparation(dataset_path)
-    outputs = NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str,)
-    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", data_preparation_result)
+    model_training_result = model_training(X_train, X_test, y_train, y_test)
+    outputs = NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str, model_training_result=str)
+    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", data_preparation_result, model_training_result)
 
 #
 
@@ -206,7 +316,7 @@ def my_pipeline(
     secret_key: str,
     dvc_file_dir: str,
     dvc_file_name: str
-) -> NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str):
+) -> NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str, model_training_result=str):
     main_task = main(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
@@ -222,8 +332,9 @@ def my_pipeline(
         dvc_file_name=dvc_file_name)
     data_ingestion_result = main_task.outputs['data_ingestion_result']
     data_preparation_result = main_task.outputs['data_preparation_result']
-    pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str)
-    return pipe_outputs(data_ingestion_result, data_preparation_result)
+    model_training_result = main_task.outputs['model_training_result']
+    pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str, model_training_result=str)
+    return pipe_outputs(data_ingestion_result, data_preparation_result, model_training_result)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"

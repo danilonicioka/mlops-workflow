@@ -12,7 +12,7 @@ def modeltraining(
     epochs: int = 3500, 
     seed: int = 42, 
     print_every: int = 500
-    ) -> Dict[str, float]:
+    ) -> str:
     
     import torch
     from torch import nn
