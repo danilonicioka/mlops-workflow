@@ -13,13 +13,9 @@
 #    remote_url: str
 #    repo_url: str
 #    secret_key: str
-# Outputs:
-#    data_ingestion_result: str
-#    data_preparation_result: str
-#    model_training_result: str
 components:
-  comp-main:
-    executorLabel: exec-main
+  comp-data-ingestion:
+    executorLabel: exec-data-ingestion
     inputDefinitions:
       parameters:
         access_key:
@@ -47,22 +43,55 @@ components:
         secret_key:
           parameterType: STRING
     outputDefinitions:
+      artifacts:
+        dataset_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-data-preparation:
+    executorLabel: exec-data-preparation
+    inputDefinitions:
+      artifacts:
+        dataset_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
       parameters:
-        data_ingestion_result:
-          parameterType: STRING
-        data_preparation_result:
-          parameterType: STRING
-        model_training_result:
-          parameterType: STRING
+        random_state:
+          defaultValue: 42.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        test_size:
+          defaultValue: 0.2
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        X_test_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        X_train_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        y_test_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        y_train_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
 deploymentSpec:
   executors:
-    exec-main:
+    exec-data-ingestion:
       container:
         args:
         - --executor_input
         - '{{$}}'
         - --function_to_execute
-        - main
+        - data_ingestion
         command:
         - sh
         - -c
@@ -70,9 +99,9 @@ deploymentSpec:
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
           \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
           \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'gitpython==3.1.43'\
-          \ 'dvc==3.51.1' 'dvc-s3==3.2.0' 'pandas==2.0.3' 'numpy==1.25.2' 'torch==2.3.0'\
-          \ 'scikit-learn==1.2.2' 'imblearn==0.10.1' && \"$0\" \"$@\"\n"
+          \  python3 -m pip install --quiet --no-warn-script-location 'gitpython'\
+          \ 'dvc==3.51.1' 'dvc-s3==3.2.0' 'numpy==1.25.2' 'pandas==2.0.3' && \"$0\"\
+          \ \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -84,18 +113,13 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef main(\n    repo_url: str,\n    cloned_dir: str,\n    branch_name:\
-          \ str,\n    github_username: str,\n    github_token: str,\n    remote_name:\
-          \ str,\n    remote_url: str,\n    minio_url: str,\n    access_key: str,\n\
-          \    secret_key: str,\n    dvc_file_dir: str,\n    dvc_file_name: str\n\
-          ) -> NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str,\
-          \ model_training_result=str):\n    from git import Repo\n    from subprocess\
-          \ import run, CalledProcessError\n    import os\n    import pandas as pd\n\
-          \    import numpy as np\n    from sklearn.model_selection import train_test_split\n\
-          \    from imblearn.over_sampling import SMOTE\n    from sklearn.preprocessing\
-          \ import StandardScaler\n    import torch\n    from torch import nn\n  \
-          \  from sklearn.metrics import accuracy_score, confusion_matrix, classification_report,\
-          \ precision_score, recall_score, f1_score\n\n    def clone_repository_with_token(repo_url,\
+          \ *\n\ndef data_ingestion(\n    repo_url: str,\n    cloned_dir: str,\n \
+          \   branch_name: str,\n    github_username: str,\n    github_token: str,\n\
+          \    remote_name: str,\n    remote_url: str,\n    minio_url: str,\n    access_key:\
+          \ str,\n    secret_key: str,\n    dvc_file_dir: str,\n    dvc_file_name:\
+          \ str,\n    dataset_artifact: Output[Dataset]\n    ):\n    from git import\
+          \ Repo\n    from subprocess import run, CalledProcessError\n    import os\n\
+          \    import pandas as pd\n\n    def clone_repository_with_token(repo_url,\
           \ cloned_dir, branch_name, github_username, github_token):\n        \"\"\
           \"Clone a Git repository using a GitHub token in the URL and specifying\
           \ the branch.\"\"\"\n        try:\n            # Construct the URL with\
@@ -138,128 +162,89 @@ deploymentSpec:
           \ operation\n            return \"Successfully pulled data from remote DVC\
           \ repository\"\n\n        except Exception as e:\n            # Log and\
           \ handle the error\n            return f\"Error occurred during dvc pull:\
-          \ {e}\"\n\n    def data_preparation(data_path, test_size=0.2, random_state=42):\n\
-          \        df = pd.read_csv(data_path)\n\n        # Handle null values and\
-          \ replace specific characters\n        #df = df.replace([' ', '-',np.nan],\
-          \ 0) # There are null values\n        df = df.replace([' ', '-', np.nan],\
-          \ np.nan)\n\n        # Selective columns for mean calculation\n        columns_to_convert\
-          \ = [\n            'CQI1', 'CQI2', 'CQI3', 'cSTD CQI', 'cMajority', 'c25\
-          \ P', 'c50 P', 'c75 P', \n            'RSRP1', 'RSRP2', 'RSRP3', 'pMajority',\
-          \ 'p25 P', 'p50 P', 'p75 P', \n            'RSRQ1', 'RSRQ2', 'RSRQ3', 'qMajority',\
-          \ 'q25 P', 'q50 P', 'q75 P', \n            'SNR1', 'SNR2', 'SNR3', 'sMajority',\
-          \ 's25 P', 's50 P', 's75 P'\n        ]\n        df[columns_to_convert] =\
-          \ df[columns_to_convert].astype(float)\n\n        # Replace np.nan with\
-          \ mean values for selective columns\n        df[columns_to_convert] = df[columns_to_convert].fillna(df[columns_to_convert].mean())\n\
-          \n        # Convert 'Stall' column to numerical values\n        df['Stall'].replace({'Yes':\
-          \ 1, 'No': 0}, inplace=True)\n\n        X = df[columns_to_convert].values\n\
-          \        y = df['Stall'].values\n\n        # Apply SMOTE for balancing the\
-          \ dataset\n        # oversample = SMOTE(random_state=random_state)\n   \
-          \     oversample = SMOTE()\n        X, y = oversample.fit_resample(X, y)\n\
-          \n        # Standardize the features\n        scaler = StandardScaler()\n\
-          \        X = scaler.fit_transform(X)\n\n        # Convert to torch tensors\n\
-          \        X = torch.tensor(X, dtype=torch.float32)\n        y = torch.tensor(y,\
-          \ dtype=torch.float32)\n\n        # Split the dataset into train and test\
-          \ sets\n        X_train, X_test, y_train, y_test = train_test_split(X, y,\
-          \ test_size=test_size, random_state=random_state)\n\n        result = \"\
-          data prepararation done\"\n\n        return (result, X_train, X_test, y_train,\
-          \ y_test)\n\n    def model_training(X_train, X_test, y_train, y_test, lr\
-          \ = 0.0001, epochs = 3500, seed = 42, print_every = 500):\n        device\
-          \ = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n\n        # Build\
-          \ model with non-linear activation function\n        class InterruptionModel(nn.Module):\n\
-          \            def __init__(self):\n                super().__init__()\n \
-          \               self.layer_1 = nn.Linear(in_features=29, out_features=200)\n\
-          \                self.layer_2 = nn.Linear(in_features=200, out_features=100)\n\
-          \                self.layer_3 = nn.Linear(in_features=100, out_features=1)\n\
-          \                self.relu = nn.ReLU() # <- add in ReLU activation function\n\
-          \                # Can also put sigmoid in the model\n                #\
-          \ This would mean you don't need to use it on the predictions\n        \
-          \        # self.sigmoid = nn.Sigmoid()\n\n            def forward(self,\
-          \ x):\n                # Intersperse the ReLU activation function between\
-          \ layers\n                return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
-          \n        model_3 = InterruptionModel().to(device)\n        print(model_3)\n\
-          \n        # Setup loss and optimizer\n        loss_fn = nn.BCEWithLogitsLoss()\n\
-          \        optimizer = torch.optim.Adam(model_3.parameters(), lr=lr)\n\n \
-          \       def accuracy_fn(y_true, y_pred):\n            correct = torch.eq(y_true,\
-          \ y_pred).sum().item() # torch.eq() calculates where two tensors are equal\n\
-          \            acc = (correct / len(y_pred)) * 100\n            return acc\n\
-          \n        # Fit the model\n        torch.manual_seed(seed)\n\n        #\
-          \ Assuming X_train, y_train, X_test, y_test are already defined and are\
-          \ tensors\n        X_train, y_train = X_train.to(device), y_train.to(device)\n\
-          \        X_test, y_test = X_test.to(device), y_test.to(device)\n\n     \
-          \   for epoch in range(epochs):\n            # 1. Forward pass\n       \
-          \     #model_3.train()\n            y_logits = model_3(X_train).squeeze()\n\
-          \            y_pred = torch.round(torch.sigmoid(y_logits)) # logits -> prediction\
-          \ probabilities -> prediction labels\n\n            # 2. Calculate loss\
-          \ and accuracy\n            loss = loss_fn(y_logits, y_train) # BCEWithLogitsLoss\
-          \ calculates loss using logits\n            acc = accuracy_fn(y_true=y_train,\
-          \ y_pred=y_pred)\n\n            # 3. Optimizer zero grad\n            optimizer.zero_grad()\n\
-          \n            # 4. Loss backward\n            loss.backward()\n\n      \
-          \      # 5. Optimizer step\n            optimizer.step()\n\n           \
-          \ ### Testing\n            model_3.eval()\n            with torch.no_grad():\n\
-          \                # 1. Forward pass\n                test_logits = model_3(X_test).squeeze()\n\
-          \                #print(test_logits.shape)\n                test_pred =\
-          \ torch.round(torch.sigmoid(test_logits)) # logits -> prediction probabilities\
-          \ -> prediction labels\n\n                # 2. Calculate loss and accuracy\n\
-          \                test_loss = loss_fn(test_logits, y_test)\n            \
-          \    test_acc = accuracy_fn(y_true=y_test, y_pred=test_pred)\n\n       \
-          \     # Print out what's happening\n            if epoch % print_every ==\
-          \ 0:\n                print(f\"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy:\
-          \ {acc:.2f}% | Test Loss: {test_loss:.5f}, Test Accuracy: {test_acc:.2f}%\"\
-          )\n\n        # Evaluate the final model\n        model_3.eval()\n      \
-          \  with torch.no_grad():\n            y_preds = torch.round(torch.sigmoid(model_3(X_test))).squeeze()\n\
-          \n        predictions = y_preds.cpu().numpy() # if using cuda, otherwise\
-          \ y_pred.numpy()\n        true_labels = y_test.cpu().numpy()\n\n       \
-          \ print(\"=== Confusion Matrix ===\")\n        print(confusion_matrix(true_labels,\
-          \ predictions))\n        print('\\n')\n\n        print(\"=== Score ===\"\
-          )\n        accuracy = accuracy_score(true_labels, predictions)\n       \
-          \ print('Accuracy: %f' % accuracy)\n\n        precision = precision_score(true_labels,\
-          \ predictions, average='weighted')\n        print('Precision: %f' % precision)\n\
-          \        recall = recall_score(true_labels, predictions, average='weighted')\n\
-          \        print('Recall: %f' % recall)\n\n        microf1 = f1_score(true_labels,\
-          \ predictions, average='micro')\n        print('Micro F1 score: %f' % microf1)\n\
-          \        macrof1 = f1_score(true_labels, predictions, average='macro')\n\
-          \        print('Macro F1 score: %f' % macrof1)\n\n        target_names =\
-          \ ['No-Stall', 'Stall']\n\n        # Print precision-recall report\n   \
-          \     print(classification_report(true_labels, predictions, target_names=target_names))\n\
-          \n        model_training_result = \"model training done\"\n        return\
-          \ model_training_result\n\n    # Call the functions\n    clone_result =\
-          \ clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username,\
-          \ github_token)\n    configure_result = configure_dvc_remote(cloned_dir,\
-          \ remote_name, remote_url, minio_url, access_key, secret_key)\n    dvc_pull_result\
-          \ = perform_dvc_pull(cloned_dir, remote_name)\n\n    # Output dataset file\n\
-          \        # Define the target CSV file path as dataset.csv in the DVC file\
-          \ directory\n    dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)\n\
-          \    data_preparation_result, X_train, X_test, y_train, y_test = data_preparation(dataset_path)\n\
-          \    model_training_result = model_training(X_train, X_test, y_train, y_test)\n\
-          \    outputs = NamedTuple('outputs', data_ingestion_result=str, data_preparation_result=str,\
-          \ model_training_result=str)\n    return outputs(f\"{clone_result}, {configure_result},\
-          \ {dvc_pull_result}\", data_preparation_result, model_training_result)\n\
+          \ {e}\"\n\n    # Call the functions\n    clone_result = clone_repository_with_token(repo_url,\
+          \ cloned_dir, branch_name, github_username, github_token)\n    configure_result\
+          \ = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url,\
+          \ access_key, secret_key)\n    dvc_pull_result = perform_dvc_pull(cloned_dir,\
+          \ remote_name)\n\n    # Save dataset with pandas in Dataset artifact\n \
+          \   pulled_dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)\n\
+          \    tmp_dataset_path = \"/tmp/\" + dvc_file_name\n    dataset = pd.read_csv(pulled_dataset_path)\n\
+          \    dataset.to_pickle(tmp_dataset_path)\n    os.rename(tmp_dataset_path,\
+          \ dataset_artifact.path)\n\n"
+        image: python:3.11.9
+    exec-data-preparation:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - data_preparation
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.0.3'\
+          \ 'numpy==1.25.2' 'torch==2.3.0' 'scikit-learn==1.2.2' 'imblearn' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef data_preparation(\n    dataset_artifact: Input[Dataset],\n  \
+          \  X_train_artifact: Output[Dataset], \n    X_test_artifact: Output[Dataset],\n\
+          \    y_train_artifact: Output[Dataset],\n    y_test_artifact: Output[Dataset],\n\
+          \    test_size: float = 0.2, \n    random_state: int = 42\n    ):\n    import\
+          \ pandas as pd\n    import numpy as np\n    from sklearn.model_selection\
+          \ import train_test_split\n    from imblearn.over_sampling import SMOTE\n\
+          \    from sklearn.preprocessing import StandardScaler\n    import torch\n\
+          \n    # Load dataset from Dataset artifact\n    df = pd.read_pickle(dataset_artifact.path)\n\
+          \n    # Handle null values and replace specific characters\n    #df = df.replace(['\
+          \ ', '-',np.nan], 0) # There are null values\n    df = df.replace([' ',\
+          \ '-', np.nan], np.nan)\n\n    # Selective columns for mean calculation\n\
+          \    columns_to_convert = [\n        'CQI1', 'CQI2', 'CQI3', 'cSTD CQI',\
+          \ 'cMajority', 'c25 P', 'c50 P', 'c75 P', \n        'RSRP1', 'RSRP2', 'RSRP3',\
+          \ 'pMajority', 'p25 P', 'p50 P', 'p75 P', \n        'RSRQ1', 'RSRQ2', 'RSRQ3',\
+          \ 'qMajority', 'q25 P', 'q50 P', 'q75 P', \n        'SNR1', 'SNR2', 'SNR3',\
+          \ 'sMajority', 's25 P', 's50 P', 's75 P'\n    ]\n    df[columns_to_convert]\
+          \ = df[columns_to_convert].astype(float)\n\n    # Replace np.nan with mean\
+          \ values for selective columns\n    df[columns_to_convert] = df[columns_to_convert].fillna(df[columns_to_convert].mean())\n\
+          \n    # Convert 'Stall' column to numerical values\n    df['Stall'].replace({'Yes':\
+          \ 1, 'No': 0}, inplace=True)\n\n    X = df[columns_to_convert].values\n\
+          \    y = df['Stall'].values\n\n    # Apply SMOTE for balancing the dataset\n\
+          \    # oversample = SMOTE(random_state=random_state)\n    oversample = SMOTE()\n\
+          \    X, y = oversample.fit_resample(X, y)\n\n    # Standardize the features\n\
+          \    scaler = StandardScaler()\n    X = scaler.fit_transform(X)\n\n    #\
+          \ Convert to torch tensors\n    X = torch.tensor(X, dtype=torch.float32)\n\
+          \    y = torch.tensor(y, dtype=torch.float32)\n\n    # Split the dataset\
+          \ into train and test sets\n    X_train, X_test, y_train, y_test = train_test_split(X,\
+          \ y, test_size=test_size, random_state=random_state)\n\n    np.save(\"/tmp/X_train.npy\"\
+          , X_train)\n    os.rename(\"/tmp/X_train.npy\", X_train_artifact.path)\n\
+          \n    np.save(\"/tmp/X_test.npy\", X_test)\n    os.rename(\"/tmp/X_test.npy\"\
+          , X_test_artifact.path)\n\n    np.save(\"/tmp/y_train.npy\", y_train)\n\
+          \    os.rename(\"/tmp/y_train.npy\", y_train_artifact.path)\n\n    np.save(\"\
+          /tmp/y_test.npy\", y_test)\n    os.rename(\"/tmp/y_test.npy\", y_test_artifact.path)\n\
           \n"
-        image: python:3.12.3
+        image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
 root:
   dag:
-    outputs:
-      parameters:
-        data_ingestion_result:
-          valueFromParameter:
-            outputParameterKey: data_ingestion_result
-            producerSubtask: main
-        data_preparation_result:
-          valueFromParameter:
-            outputParameterKey: data_preparation_result
-            producerSubtask: main
-        model_training_result:
-          valueFromParameter:
-            outputParameterKey: model_training_result
-            producerSubtask: main
     tasks:
-      main:
+      data-ingestion:
         cachingOptions:
           enableCache: true
         componentRef:
-          name: comp-main
+          name: comp-data-ingestion
         inputs:
           parameters:
             access_key:
@@ -287,7 +272,22 @@ root:
             secret_key:
               componentInputParameter: secret_key
         taskInfo:
-          name: main
+          name: data-ingestion
+      data-preparation:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-data-preparation
+        dependentTasks:
+        - data-ingestion
+        inputs:
+          artifacts:
+            dataset_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: dataset_artifact
+                producerTask: data-ingestion
+        taskInfo:
+          name: data-preparation
   inputDefinitions:
     parameters:
       access_key:
@@ -313,14 +313,6 @@ root:
       repo_url:
         parameterType: STRING
       secret_key:
-        parameterType: STRING
-  outputDefinitions:
-    parameters:
-      data_ingestion_result:
-        parameterType: STRING
-      data_preparation_result:
-        parameterType: STRING
-      model_training_result:
         parameterType: STRING
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.7.0

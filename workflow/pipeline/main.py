@@ -1,5 +1,6 @@
 import kfp
 from kfp import dsl
+from kfp.dsl import Input, Output, Dataset, Model, Metrics, ClassificationMetrics
 import os
 from dotenv import load_dotenv
 from typing import NamedTuple
@@ -29,7 +30,7 @@ DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
 
 # Define a KFP component factory function for data ingestion
-@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
+@dsl.component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
 def data_ingestion(
     repo_url: str,
     cloned_dir: str,
@@ -42,11 +43,13 @@ def data_ingestion(
     access_key: str,
     secret_key: str,
     dvc_file_dir: str,
-    dvc_file_name: str
-) -> NamedTuple('outputs', result=str, dataset=str):
+    dvc_file_name: str,
+    dataset_artifact: Output[Dataset]
+    ):
     from git import Repo
     from subprocess import run, CalledProcessError
     import os
+    import pandas as pd
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
@@ -128,34 +131,34 @@ def data_ingestion(
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir, remote_name)
 
-    # Output dataset file
-        # Define the target CSV file path as dataset.csv in the DVC file directory
-    dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
-    f = open(dataset_path, 'r')
-    dataset = f.read()
-    outputs = NamedTuple('outputs', result=str, dataset=str)
-    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
+    # Save dataset with pandas in Dataset artifact
+    pulled_dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
+    tmp_dataset_path = "/tmp/" + dvc_file_name
+    dataset = pd.read_csv(pulled_dataset_path)
+    dataset.to_pickle(tmp_dataset_path)
+    os.rename(tmp_dataset_path, dataset_artifact.path)
     
 # Component for data preparation
-@dsl.component(base_image="python:3.12.3", packages_to_install=['pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
+@dsl.component(base_image="python:3.11.9", packages_to_install=['pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn'])
 def data_preparation(
-    dataset: str, 
-    data_path: str = 'dataset.csv', 
+    dataset_artifact: Input[Dataset],
+    X_train_artifact: Output[Dataset], 
+    X_test_artifact: Output[Dataset],
+    y_train_artifact: Output[Dataset],
+    y_test_artifact: Output[Dataset],
     test_size: float = 0.2, 
     random_state: int = 42
-    ) -> NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list):
+    ):
     import pandas as pd
     import numpy as np
     from sklearn.model_selection import train_test_split
     from imblearn.over_sampling import SMOTE
     from sklearn.preprocessing import StandardScaler
     import torch
+    import os
 
-    # Save the file content locally
-    with open(data_path, 'wb') as local_file:
-        local_file.write(dataset)
-
-    df = pd.read_csv(data_path)
+    # Load dataset from Dataset artifact
+    df = pd.read_pickle(dataset_artifact.path)
 
     # Handle null values and replace specific characters
     #df = df.replace([' ', '-',np.nan], 0) # There are null values
@@ -195,11 +198,21 @@ def data_preparation(
     # Split the dataset into train and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-    outputs = NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list)
-    result = "data prepararation done"
+    X_train_path = "/tmp/X_train.pt"
+    X_test_path = "/tmp/X_test.pt"
+    y_train_path = "/tmp/y_train.pt"
+    y_test_path = "/tmp/y_test.pt"
+    torch.save(X_train, X_train_path)
+    os.rename(X_train_path, X_train_artifact.path)
 
-    return outputs(result, X_train, X_test, y_train, y_test)
+    torch.save(X_test, X_test_path)
+    os.rename(X_test_path, X_test_artifact.path)
 
+    torch.save(y_train, y_train_path)
+    os.rename(y_train_path, y_train_artifact.path)
+
+    torch.save(y_test, y_test_path)
+    os.rename(y_test_path, y_test_artifact.path)
 #
 
 @dsl.pipeline
@@ -216,7 +229,7 @@ def my_pipeline(
     secret_key: str,
     dvc_file_dir: str,
     dvc_file_name: str
-) -> NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str):
+):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
@@ -230,16 +243,8 @@ def my_pipeline(
         secret_key=secret_key,
         dvc_file_dir=dvc_file_dir,
         dvc_file_name=dvc_file_name)
-    data_ingestion_result = data_ingestion_task.outputs['result']
-    data_ingestion_dataset = data_ingestion_task.outputs['dataset']
-    data_preparation_task = data_preparation(dataset=data_ingestion_dataset)
-    data_preparation_result = data_preparation_task.outputs['result']
-    X_train = data_preparation_task.outputs['X_train']
-    X_test = data_preparation_task.outputs['X_test']
-    y_train = data_preparation_task.outputs['y_train']
-    y_test = data_preparation_task.outputs['y_test']
-    pipe_outputs = NamedTuple('pipe_outputs', data_ingestion_result=str, data_preparation_result=str)
-    return pipe_outputs(data_ingestion_result, data_preparation_result)
+    dataset_artifact = data_ingestion_task.output
+    data_preparation_task = data_preparation(dataset_artifact=dataset_artifact)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -252,8 +257,7 @@ client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 
 client.create_run_from_pipeline_func(
     my_pipeline, 
-    enable_caching=False, 
-    mode=dsl.PipelineExecutionMode.V2_COMPATIBLE,
+    enable_caching=False,
     arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
