@@ -7,4 +7,3 @@ gitpython==3.1.43
 requests==2.31.0
 dvc==3.51.1
 dvc-s3==3.2.0
-kfp==2.7.0

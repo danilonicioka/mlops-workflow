@@ -1,7 +1,9 @@
 import kfp
 from kfp import dsl
+from kfp.dsl import Input, Output, Dataset, Model, Metrics, ClassificationMetrics
 import os
 from dotenv import load_dotenv
+from typing import NamedTuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,7 +17,7 @@ REPO_URL = "https://github.com/danilonicioka/mlops-workflow.git"
 CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
-PIPELINE_NAME = "Clone_and_Pull_Pipeline"
+PIPELINE_NAME = "mlops"
 KFP_HOST = "http://localhost:3000"  # KFP host URL
 
 # Define DVC remote configuration variables
@@ -24,10 +26,12 @@ REMOTE_URL = "s3://dvc-data"
 MINIO_URL = "http://minio-svc.minio:9000"
 ACCESS_KEY = os.getenv("ACCESS_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
+DVC_FILE_DIR = 'data/external'
+DVC_FILE_NAME = 'dataset.csv'
 
-# Define a KFP component factory function for cloning repository with token
-@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
-def clone_repo_and_dvc_pull(
+# Define a KFP component factory function for data ingestion
+@dsl.component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
+def data_ingestion(
     repo_url: str,
     cloned_dir: str,
     branch_name: str,
@@ -37,10 +41,15 @@ def clone_repo_and_dvc_pull(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
-) -> str:
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str,
+    dataset_artifact: Output[Dataset]
+    ):
     from git import Repo
     from subprocess import run, CalledProcessError
+    import os
+    import pandas as pd
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
@@ -121,8 +130,90 @@ def clone_repo_and_dvc_pull(
     clone_result = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token)
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir, remote_name)
+
+    # Save dataset with pandas in Dataset artifact
+    pulled_dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
+    tmp_dataset_path = "/tmp/" + dvc_file_name
+    dataset = pd.read_csv(pulled_dataset_path)
+    dataset.to_pickle(tmp_dataset_path)
+    os.rename(tmp_dataset_path, dataset_artifact.path)
     
-    return f"{clone_result}, {configure_result}, {dvc_pull_result}"
+# Component for data preparation
+@dsl.component(base_image="python:3.11.9", packages_to_install=['pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn'])
+def data_preparation(
+    dataset_artifact: Input[Dataset],
+    X_train_artifact: Output[Dataset], 
+    X_test_artifact: Output[Dataset],
+    y_train_artifact: Output[Dataset],
+    y_test_artifact: Output[Dataset],
+    test_size: float = 0.2, 
+    random_state: int = 42
+    ):
+    import pandas as pd
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+    from imblearn.over_sampling import SMOTE
+    from sklearn.preprocessing import StandardScaler
+    import torch
+    import os
+
+    # Load dataset from Dataset artifact
+    df = pd.read_pickle(dataset_artifact.path)
+
+    # Handle null values and replace specific characters
+    #df = df.replace([' ', '-',np.nan], 0) # There are null values
+    df = df.replace([' ', '-', np.nan], np.nan)
+
+    # Selective columns for mean calculation
+    columns_to_convert = [
+        'CQI1', 'CQI2', 'CQI3', 'cSTD CQI', 'cMajority', 'c25 P', 'c50 P', 'c75 P', 
+        'RSRP1', 'RSRP2', 'RSRP3', 'pMajority', 'p25 P', 'p50 P', 'p75 P', 
+        'RSRQ1', 'RSRQ2', 'RSRQ3', 'qMajority', 'q25 P', 'q50 P', 'q75 P', 
+        'SNR1', 'SNR2', 'SNR3', 'sMajority', 's25 P', 's50 P', 's75 P'
+    ]
+    df[columns_to_convert] = df[columns_to_convert].astype(float)
+
+    # Replace np.nan with mean values for selective columns
+    df[columns_to_convert] = df[columns_to_convert].fillna(df[columns_to_convert].mean())
+
+    # Convert 'Stall' column to numerical values
+    df['Stall'].replace({'Yes': 1, 'No': 0}, inplace=True)
+
+    X = df[columns_to_convert].values
+    y = df['Stall'].values
+
+    # Apply SMOTE for balancing the dataset
+    # oversample = SMOTE(random_state=random_state)
+    oversample = SMOTE()
+    X, y = oversample.fit_resample(X, y)
+
+    # Standardize the features
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    # Convert to torch tensors
+    X = torch.tensor(X, dtype=torch.float32)
+    y = torch.tensor(y, dtype=torch.float32)
+
+    # Split the dataset into train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+    X_train_path = "/tmp/X_train.pt"
+    X_test_path = "/tmp/X_test.pt"
+    y_train_path = "/tmp/y_train.pt"
+    y_test_path = "/tmp/y_test.pt"
+    torch.save(X_train, X_train_path)
+    os.rename(X_train_path, X_train_artifact.path)
+
+    torch.save(X_test, X_test_path)
+    os.rename(X_test_path, X_test_artifact.path)
+
+    torch.save(y_train, y_train_path)
+    os.rename(y_train_path, y_train_artifact.path)
+
+    torch.save(y_test, y_test_path)
+    os.rename(y_test_path, y_test_artifact.path)
+#
 
 @dsl.pipeline
 def my_pipeline(
@@ -135,9 +226,11 @@ def my_pipeline(
     remote_url: str,
     minio_url: str,
     access_key: str,
-    secret_key: str
-) -> str:
-    clone_repo_and_dvc_pull_task = clone_repo_and_dvc_pull(
+    secret_key: str,
+    dvc_file_dir: str,
+    dvc_file_name: str
+):
+    data_ingestion_task = data_ingestion(
         repo_url=repo_url,
         cloned_dir=cloned_dir,
         branch_name=branch_name,
@@ -147,8 +240,11 @@ def my_pipeline(
         remote_url=remote_url,
         minio_url=minio_url,
         access_key=access_key,
-        secret_key=secret_key)
-    return clone_repo_and_dvc_pull_task.output
+        secret_key=secret_key,
+        dvc_file_dir=dvc_file_dir,
+        dvc_file_name=dvc_file_name)
+    dataset_artifact = data_ingestion_task.output
+    data_preparation_task = data_preparation(dataset_artifact=dataset_artifact)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -158,8 +254,9 @@ kfp.compiler.Compiler().compile(
 
 # Submit the pipeline to the KFP cluster
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
+
 client.create_run_from_pipeline_func(
-    my_pipeline,
+    my_pipeline, 
     enable_caching=False,
     arguments={
         'repo_url': REPO_URL,
@@ -171,5 +268,7 @@ client.create_run_from_pipeline_func(
         'remote_url': REMOTE_URL,
         'minio_url': MINIO_URL,
         'access_key': ACCESS_KEY,
-        'secret_key': SECRET_KEY
+        'secret_key': SECRET_KEY,
+        'dvc_file_dir': DVC_FILE_DIR,
+        'dvc_file_name': DVC_FILE_NAME
     })
