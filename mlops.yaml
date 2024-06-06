@@ -207,7 +207,7 @@ deploymentSpec:
           \ pandas as pd\n    import numpy as np\n    from sklearn.model_selection\
           \ import train_test_split\n    from imblearn.over_sampling import SMOTE\n\
           \    from sklearn.preprocessing import StandardScaler\n    import torch\n\
-          \n    # Load dataset from Dataset artifact\n    df = pd.read_pickle(dataset_artifact.path)\n\
+          \    import os\n\n    # Load dataset from Dataset artifact\n    df = pd.read_pickle(dataset_artifact.path)\n\
           \n    # Handle null values and replace specific characters\n    #df = df.replace(['\
           \ ', '-',np.nan], 0) # There are null values\n    df = df.replace([' ',\
           \ '-', np.nan], np.nan)\n\n    # Selective columns for mean calculation\n\
@@ -227,12 +227,13 @@ deploymentSpec:
           \ Convert to torch tensors\n    X = torch.tensor(X, dtype=torch.float32)\n\
           \    y = torch.tensor(y, dtype=torch.float32)\n\n    # Split the dataset\
           \ into train and test sets\n    X_train, X_test, y_train, y_test = train_test_split(X,\
-          \ y, test_size=test_size, random_state=random_state)\n\n    np.save(\"/tmp/X_train.npy\"\
-          , X_train)\n    os.rename(\"/tmp/X_train.npy\", X_train_artifact.path)\n\
-          \n    np.save(\"/tmp/X_test.npy\", X_test)\n    os.rename(\"/tmp/X_test.npy\"\
-          , X_test_artifact.path)\n\n    np.save(\"/tmp/y_train.npy\", y_train)\n\
-          \    os.rename(\"/tmp/y_train.npy\", y_train_artifact.path)\n\n    np.save(\"\
-          /tmp/y_test.npy\", y_test)\n    os.rename(\"/tmp/y_test.npy\", y_test_artifact.path)\n\
+          \ y, test_size=test_size, random_state=random_state)\n\n    X_train_path\
+          \ = \"/tmp/X_train.pt\"\n    X_test_path = \"/tmp/X_test.pt\"\n    y_train_path\
+          \ = \"/tmp/y_train.pt\"\n    y_test_path = \"/tmp/y_test.pt\"\n    torch.save(X_train,\
+          \ X_train_path)\n    os.rename(X_train_path, X_train_artifact.path)\n\n\
+          \    torch.save(X_test, X_test_path)\n    os.rename(X_test_path, X_test_artifact.path)\n\
+          \n    torch.save(y_train, y_train_path)\n    os.rename(y_train_path, y_train_artifact.path)\n\
+          \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
 pipelineInfo:

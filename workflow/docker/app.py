@@ -30,7 +30,7 @@ config = {
     "DVC_FILE_NAME": os.environ.get('DVC_FILE_NAME', 'dataset.csv'),
     "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'tests'),
     "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
-    "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
+    "MINIO_URL": os.environ.get('MINIO_URL', '10.15.201.1:30204'),
     "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
     "SECRET_KEY": os.environ.get('SECRET_KEY'),
     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),

@@ -11,8 +11,10 @@ spec:
       protocol: TCP
       port: 9000
       targetPort: 9000
+      nodePort: 30204
     - name: ui
       protocol: TCP
       port: 9090
       targetPort: 9090
-  type: ClusterIP
+      nodePort: 31915
+  type: NodePort
