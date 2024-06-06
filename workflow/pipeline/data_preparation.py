@@ -1,27 +1,27 @@
-import kfp
-from kfp import dsl
+from kfp.dsl import component, Input, Output, Dataset
 from typing import NamedTuple
 
 # Component for data preparation
-@dsl.component(base_image="python:3.12.3", packages_to_install=['pandas', 'numpy', 'torch', 'scikit-learn', 'imblearn'])
+@component(base_image="python:3.11.9", packages_to_install=['pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn'])
 def data_preparation(
-    dataset: str, 
-    data_path: str = 'dataset.csv', 
+    dataset_artifact: Input[Dataset],
+    X_train_artifact: Output[Dataset], 
+    X_test_artifact: Output[Dataset],
+    y_train_artifact: Output[Dataset],
+    y_test_artifact: Output[Dataset],
     test_size: float = 0.2, 
     random_state: int = 42
-    ) -> NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list):
+    ):
     import pandas as pd
     import numpy as np
     from sklearn.model_selection import train_test_split
     from imblearn.over_sampling import SMOTE
     from sklearn.preprocessing import StandardScaler
     import torch
+    import os
 
-    # Save the file content locally
-    with open(data_path, 'wb') as local_file:
-        local_file.write(dataset)
-
-    df = pd.read_csv(data_path)
+    # Load dataset from Dataset artifact
+    df = pd.read_pickle(dataset_artifact.path)
 
     # Handle null values and replace specific characters
     #df = df.replace([' ', '-',np.nan], 0) # There are null values
@@ -61,7 +61,18 @@ def data_preparation(
     # Split the dataset into train and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
-    outputs = NamedTuple('outputs', result=str, X_train=list, X_test=list, y_train=list, y_test=list)
-    result = "data prepararation done"
+    X_train_path = "/tmp/X_train.pt"
+    X_test_path = "/tmp/X_test.pt"
+    y_train_path = "/tmp/y_train.pt"
+    y_test_path = "/tmp/y_test.pt"
+    torch.save(X_train, X_train_path)
+    os.rename(X_train_path, X_train_artifact.path)
 
-    return outputs(result, X_train, X_test, y_train, y_test)
+    torch.save(X_test, X_test_path)
+    os.rename(X_test_path, X_test_artifact.path)
+
+    torch.save(y_train, y_train_path)
+    os.rename(y_train_path, y_train_artifact.path)
+
+    torch.save(y_test, y_test_path)
+    os.rename(y_test_path, y_test_artifact.path)

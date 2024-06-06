@@ -83,6 +83,14 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-model-building:
+    executorLabel: exec-model-building
+    outputDefinitions:
+      artifacts:
+        model_artifact:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
 deploymentSpec:
   executors:
     exec-data-ingestion:
@@ -236,6 +244,48 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-model-building:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_building
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'torch==2.3.0'\
+          \ 'scikit-learn==1.2.2' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_building(\n    model_artifact: Output[Model]\n    ):\n\n\
+          \    import torch\n    from torch import nn\n\n    # Build model with non-linear\
+          \ activation function\n    class InterruptionModel(nn.Module):\n       \
+          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
+          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
+          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
+          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
+          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
+          \ put sigmoid in the model\n            # This would mean you don't need\
+          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
+          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
+          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \n    model = InterruptionModel()\n\n    # Save model\n    torch.save(model.state_dict(),\
+          \ model_artifact.path)\n\n"
+        image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
 root:
@@ -289,6 +339,13 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
+      model-building:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-building
+        taskInfo:
+          name: model-building
   inputDefinitions:
     parameters:
       access_key:

@@ -1,6 +1,5 @@
 import kfp
-from kfp import dsl
-from kfp.dsl import Input, Output, Dataset, Model, Metrics, ClassificationMetrics
+from kfp.dsl import component, pipeline, Input, Output, Dataset, Model, Metrics, ClassificationMetrics
 import os
 from dotenv import load_dotenv
 from typing import NamedTuple
@@ -18,7 +17,7 @@ CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
 PIPELINE_NAME = "mlops"
-KFP_HOST = "http://localhost:3000"  # KFP host URL
+KFP_HOST = "http://kubeflow.com"  # KFP host URL
 
 # Define DVC remote configuration variables
 REMOTE_NAME = "minio_remote"
@@ -30,7 +29,7 @@ DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
 
 # Define a KFP component factory function for data ingestion
-@dsl.component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
+@component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
 def data_ingestion(
     repo_url: str,
     cloned_dir: str,
@@ -139,7 +138,7 @@ def data_ingestion(
     os.rename(tmp_dataset_path, dataset_artifact.path)
     
 # Component for data preparation
-@dsl.component(base_image="python:3.11.9", packages_to_install=['pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn'])
+@component(base_image="python:3.11.9", packages_to_install=['pandas==2.0.3', 'numpy==1.25.2', 'torch==2.3.0', 'scikit-learn==1.2.2', 'imblearn'])
 def data_preparation(
     dataset_artifact: Input[Dataset],
     X_train_artifact: Output[Dataset], 
@@ -213,9 +212,38 @@ def data_preparation(
 
     torch.save(y_test, y_test_path)
     os.rename(y_test_path, y_test_artifact.path)
-#
 
-@dsl.pipeline
+# Component for model building
+@component(base_image="python:3.11.9", packages_to_install=['torch==2.3.0', 'scikit-learn==1.2.2'])
+def model_building(
+    model_artifact: Output[Model]
+    ):
+    
+    import torch
+    from torch import nn
+
+    # Build model with non-linear activation function
+    class InterruptionModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer_1 = nn.Linear(in_features=29, out_features=200)
+            self.layer_2 = nn.Linear(in_features=200, out_features=100)
+            self.layer_3 = nn.Linear(in_features=100, out_features=1)
+            self.relu = nn.ReLU() # <- add in ReLU activation function
+            # Can also put sigmoid in the model
+            # This would mean you don't need to use it on the predictions
+            # self.sigmoid = nn.Sigmoid()
+
+        def forward(self, x):
+            # Intersperse the ReLU activation function between layers
+            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
+
+    model = InterruptionModel()
+
+    # Save model
+    torch.save(model.state_dict(), model_artifact.path)
+
+@pipeline
 def my_pipeline(
     repo_url: str,
     cloned_dir: str,
@@ -245,6 +273,7 @@ def my_pipeline(
         dvc_file_name=dvc_file_name)
     dataset_artifact = data_ingestion_task.output
     data_preparation_task = data_preparation(dataset_artifact=dataset_artifact)
+    model_building_task = model_building()
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
