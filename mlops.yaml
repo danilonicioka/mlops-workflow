@@ -13,6 +13,9 @@
 #    remote_url: str
 #    repo_url: str
 #    secret_key: str
+# Outputs:
+#    model-training-classification_metrics: system.ClassificationMetrics
+#    model-training-metrics: system.Metrics
 components:
   comp-data-ingestion:
     executorLabel: exec-data-ingestion
@@ -82,6 +85,53 @@ components:
         y_train_artifact:
           artifactType:
             schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-model-training:
+    executorLabel: exec-model-training
+    inputDefinitions:
+      artifacts:
+        X_test_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        X_train_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        y_test_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        y_train_artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        epochs:
+          defaultValue: 3500.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        lr:
+          defaultValue: 0.0001
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        print_every:
+          defaultValue: 500.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+    outputDefinitions:
+      artifacts:
+        classification_metrics:
+          artifactType:
+            schemaTitle: system.ClassificationMetrics
+            schemaVersion: 0.0.1
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+        model_trained_artifact:
+          artifactType:
+            schemaTitle: system.Model
             schemaVersion: 0.0.1
 deploymentSpec:
   executors:
@@ -236,10 +286,119 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-model-training:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_training
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'torch==2.3.0'\
+          \ 'scikit-learn==1.2.2' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_training(\n    X_train_artifact: Input[Dataset], \n   \
+          \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
+          \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
+          \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
+          \ Output[Model],\n    lr: float = 0.0001,\n    epochs: int = 3500,\n   \
+          \ print_every: int = 500\n    ):\n    import torch\n    from torch import\
+          \ nn\n    from sklearn.metrics import accuracy_score, confusion_matrix,\
+          \ classification_report, precision_score, recall_score, f1_score\n\n   \
+          \ # Build model with non-linear activation function\n    class InterruptionModel(nn.Module):\n\
+          \        def __init__(self):\n            super().__init__()\n         \
+          \   self.layer_1 = nn.Linear(in_features=29, out_features=200)\n       \
+          \     self.layer_2 = nn.Linear(in_features=200, out_features=100)\n    \
+          \        self.layer_3 = nn.Linear(in_features=100, out_features=1)\n   \
+          \         self.relu = nn.ReLU() # <- add in ReLU activation function\n \
+          \           # Can also put sigmoid in the model\n            # This would\
+          \ mean you don't need to use it on the predictions\n            # self.sigmoid\
+          \ = nn.Sigmoid()\n\n        def forward(self, x):\n            # Intersperse\
+          \ the ReLU activation function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \n    device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n    model\
+          \ = InterruptionModel().to(device)\n\n    # Setup loss and optimizer\n \
+          \   loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
+          \ lr=lr)\n\n    def accuracy_fn(y_true, y_pred):\n        correct = torch.eq(y_true,\
+          \ y_pred).sum().item() # torch.eq() calculates where two tensors are equal\n\
+          \        acc = (correct / len(y_pred)) * 100\n        return acc\n\n   \
+          \ # Fit the model\n    torch.manual_seed(42)\n    epochs = epochs\n\n  \
+          \  # Put all data on target device\n    X_train = torch.load(X_train_artifact.path)\n\
+          \    X_test = torch.load(X_test_artifact.path)\n    y_train = torch.load(y_train_artifact.path)\n\
+          \    y_test = torch.load(y_test_artifact.path)\n    X_train, y_train = X_train.to(device),\
+          \ y_train.to(device)\n    X_test, y_test = X_test.to(device), y_test.to(device)\n\
+          \n    for epoch in range(epochs):\n        # 1. Forward pass\n        y_logits\
+          \ = model(X_train).squeeze()\n\n        y_pred = torch.round(torch.sigmoid(y_logits))\
+          \ # logits -> prediction probabilities -> prediction labels\n\n        #\
+          \ 2. Calculate loss and accuracy\n        loss = loss_fn(y_logits, y_train)\
+          \ # BCEWithLogitsLoss calculates loss using logits\n        acc = accuracy_fn(y_true=y_train,\n\
+          \                        y_pred=y_pred)\n\n        # 3. Optimizer zero grad\n\
+          \        optimizer.zero_grad()\n\n        # 4. Loss backward\n        loss.backward()\n\
+          \n        # 5. Optimizer step\n        optimizer.step()\n\n        ### Testing\n\
+          \        model.eval()\n        with torch.no_grad():\n        # 1. Forward\
+          \ pass\n            test_logits = model(X_test).squeeze()\n            #print(test_logits.shape)\n\
+          \            test_pred = torch.round(torch.sigmoid(test_logits)) # logits\
+          \ -> prediction probabilities -> prediction labels\n            # 2. Calcuate\
+          \ loss and accuracy\n            test_loss = loss_fn(test_logits, y_test)\n\
+          \            test_acc = accuracy_fn(y_true=y_test,\n                   \
+          \             y_pred=test_pred)\n\n\n        # Print out what's happening\n\
+          \        if epoch % print_every == 0:\n            print(f\"Epoch: {epoch}\
+          \ | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f},\
+          \ Test Accuracy: {test_acc:.2f}%\")\n\n        model.eval()\n        with\
+          \ torch.no_grad():\n            y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
+          \n        if device == \"cuda\":\n            predictions = y_preds.cpu().numpy()\
+          \ #if it is cuda, then this, otherwise y_pred.numpy()\n            true_labels\
+          \ = y_test.cpu().numpy()\n        else:\n            predictions = y_preds.numpy()\n\
+          \            true_labels = y_test.numpy()\n\n        # Confusion Matrix\n\
+          \        cmatrix = confusion_matrix(true_labels, predictions)\n        print(\"\
+          Confusion Matrix:\", cmatrix)\n\n        # Metrics\n        accuracy = accuracy_score(true_labels,\
+          \ predictions)\n        metrics.log_metric(\"Accuracy\", accuracy)\n   \
+          \     print('Accuracy: %f' % accuracy)\n\n        precision = precision_score(true_labels,\
+          \  predictions, average='weighted')\n        metrics.log_metric(\"Precision\"\
+          , precision)\n        print('Precision: %f' % precision)\n\n        recall\
+          \ = recall_score(true_labels, predictions, average='weighted')\n       \
+          \ metrics.log_metric(\"Recall\", recall)\n        print('Recall: %f' % recall)\n\
+          \n        microf1 = f1_score(true_labels, predictions, average='micro')\n\
+          \        metrics.log_metric(\"Micro F1 score\", microf1)\n        print('Micro\
+          \ F1 score: %f' % microf1)\n\n        macrof1 = f1_score(true_labels, predictions,\
+          \ average='macro')\n        metrics.log_metric(\"Macro F1 score\", macrof1)\n\
+          \        print('Macro F1 score: %f' % macrof1)\n\n        target_names =\
+          \ ['No-Stall', 'Stall']\n        # Print precision-recall report\n     \
+          \   print(classification_report(true_labels, predictions, target_names=target_names))\n\
+          \n        # Classification Metrics artifact\n        cmatrix = cmatrix.tolist()\n\
+          \        target_names = ['No-Stall', 'Stall']\n        classification_metrics.log_confusion_matrix(target_names,\
+          \ cmatrix)\n\n        # Save model\n        torch.save(model.state_dict(),\
+          \ model_trained_artifact.path)\n\n"
+        image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
 root:
   dag:
+    outputs:
+      artifacts:
+        model-training-classification_metrics:
+          artifactSelectors:
+          - outputArtifactKey: classification_metrics
+            producerSubtask: model-training
+        model-training-metrics:
+          artifactSelectors:
+          - outputArtifactKey: metrics
+            producerSubtask: model-training
     tasks:
       data-ingestion:
         cachingOptions:
@@ -289,6 +448,33 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
+      model-training:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-training
+        dependentTasks:
+        - data-preparation
+        inputs:
+          artifacts:
+            X_test_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: X_test_artifact
+                producerTask: data-preparation
+            X_train_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: X_train_artifact
+                producerTask: data-preparation
+            y_test_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: y_test_artifact
+                producerTask: data-preparation
+            y_train_artifact:
+              taskOutputArtifact:
+                outputArtifactKey: y_train_artifact
+                producerTask: data-preparation
+        taskInfo:
+          name: model-training
   inputDefinitions:
     parameters:
       access_key:
@@ -315,5 +501,15 @@ root:
         parameterType: STRING
       secret_key:
         parameterType: STRING
+  outputDefinitions:
+    artifacts:
+      model-training-classification_metrics:
+        artifactType:
+          schemaTitle: system.ClassificationMetrics
+          schemaVersion: 0.0.1
+      model-training-metrics:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.7.0

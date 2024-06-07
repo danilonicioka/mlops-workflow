@@ -1,8 +1,6 @@
-import kfp
-from kfp import dsl
+from kfp.dsl import component, Output, Dataset
 import os
 from dotenv import load_dotenv
-from typing import NamedTuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -29,7 +27,7 @@ DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
 
 # Define a KFP component factory function for data ingestion
-@dsl.component(base_image="python:3.12.3",packages_to_install=['gitpython', 'dvc==3.51.1','dvc-s3==3.2.0'])
+@component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
 def data_ingestion(
     repo_url: str,
     cloned_dir: str,
@@ -42,11 +40,13 @@ def data_ingestion(
     access_key: str,
     secret_key: str,
     dvc_file_dir: str,
-    dvc_file_name: str
-) -> NamedTuple('outputs', result=str, dataset=str):
+    dvc_file_name: str,
+    dataset_artifact: Output[Dataset]
+    ):
     from git import Repo
     from subprocess import run, CalledProcessError
     import os
+    import pandas as pd
 
     def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username, github_token):
         """Clone a Git repository using a GitHub token in the URL and specifying the branch."""
@@ -128,69 +128,9 @@ def data_ingestion(
     configure_result = configure_dvc_remote(cloned_dir, remote_name, remote_url, minio_url, access_key, secret_key)
     dvc_pull_result = perform_dvc_pull(cloned_dir, remote_name)
 
-    # Output dataset file
-        # Define the target CSV file path as dataset.csv in the DVC file directory
-    dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
-    f = open(dataset_path, 'r')
-    dataset = f.read()
-    outputs = NamedTuple('outputs', result=str, dataset=str)
-    return outputs(f"{clone_result}, {configure_result}, {dvc_pull_result}", dataset)
-    
-@dsl.pipeline
-def my_pipeline(
-    repo_url: str,
-    cloned_dir: str,
-    branch_name: str,
-    github_username: str,
-    github_token: str,
-    remote_name: str,
-    remote_url: str,
-    minio_url: str,
-    access_key: str,
-    secret_key: str,
-    dvc_file_dir: str,
-    dvc_file_name: str
-) -> NamedTuple('pipe_outputs', result=str, dataset=str):
-    data_ingestion_task = data_ingestion(
-        repo_url=repo_url,
-        cloned_dir=cloned_dir,
-        branch_name=branch_name,
-        github_username=github_username,
-        github_token=github_token,
-        remote_name=remote_name,
-        remote_url=remote_url,
-        minio_url=minio_url,
-        access_key=access_key,
-        secret_key=secret_key,
-        dvc_file_dir=dvc_file_dir,
-        dvc_file_name=dvc_file_name)
-    result = data_ingestion_task.outputs['result']
-    dataset = data_ingestion_task.outputs['dataset']
-    pipe_outputs = NamedTuple('pipe_outputs', result=str, dataset=str)
-    return pipe_outputs(result, dataset)
-
-# Compile the pipeline
-pipeline_filename = f"{PIPELINE_NAME}.yaml"
-kfp.compiler.Compiler().compile(
-    pipeline_func=my_pipeline,
-    package_path=pipeline_filename)
-
-# Submit the pipeline to the KFP cluster
-client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
-client.create_run_from_pipeline_func(
-    my_pipeline,
-    enable_caching=False,
-    arguments={
-        'repo_url': REPO_URL,
-        'cloned_dir': CLONED_DIR,
-        'branch_name': BRANCH_NAME,
-        'github_username': GITHUB_USERNAME,
-        'github_token': GITHUB_TOKEN,
-        'remote_name': REMOTE_NAME,
-        'remote_url': REMOTE_URL,
-        'minio_url': MINIO_URL,
-        'access_key': ACCESS_KEY,
-        'secret_key': SECRET_KEY,
-        'dvc_file_dir': DVC_FILE_DIR,
-        'dvc_file_name': DVC_FILE_NAME
-    })
+    # Save dataset with pandas in Dataset artifact
+    pulled_dataset_path = os.path.join(cloned_dir, dvc_file_dir, dvc_file_name)
+    tmp_dataset_path = "/tmp/" + dvc_file_name
+    dataset = pd.read_csv(pulled_dataset_path)
+    dataset.to_pickle(tmp_dataset_path)
+    os.rename(tmp_dataset_path, dataset_artifact.path)
