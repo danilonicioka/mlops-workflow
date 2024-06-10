@@ -448,10 +448,11 @@ def my_pipeline(
     X_test_artifact = data_preparation_task.outputs["X_test_artifact"]
     y_train_artifact = data_preparation_task.outputs["y_train_artifact"]
     y_test_artifact = data_preparation_task.outputs["y_test_artifact"]
-    model_training_task = model_training(X_train_artifact=X_train_artifact, 
+    model_trained_artifact = model_training(X_train_artifact=X_train_artifact, 
                                          X_test_artifact=X_test_artifact, 
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
+    model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
