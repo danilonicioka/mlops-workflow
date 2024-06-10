@@ -353,7 +353,10 @@ def model_training(
         classification_metrics.log_confusion_matrix(target_names, cmatrix)
 
         # Save model
-        torch.save(model.state_dict(), model_trained_artifact.path)
+        model_path = "/tmp/model.pt"
+        torch.save(model.state_dict(), model_path)
+        os.rename(model_path, model_trained_artifact.path)
+        
 
 @component(base_image="python:3.11.9", packages_to_install=['kserve','kubernetes'])
 def model_serving(
