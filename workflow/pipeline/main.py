@@ -1,4 +1,5 @@
 import kfp
+from kfp import components
 from kfp.dsl import component, pipeline, Input, Output, Dataset, Model, Metrics, ClassificationMetrics
 import os
 from dotenv import load_dotenv
@@ -26,6 +27,10 @@ ACCESS_KEY = os.getenv("ACCESS_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
+
+# Model serve config vars
+MODEL_NAME = "youtubegoes5g"
+FRAMEWORK = "pytorch"
 
 # Define a KFP component factory function for data ingestion
 @component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
@@ -305,8 +310,8 @@ def model_training(
 
 
         # Print out what's happening
-        if epoch % print_every == 0:
-            print(f"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f}, Test Accuracy: {test_acc:.2f}%")
+        #if epoch % print_every == 0:
+        #    print(f"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f}, Test Accuracy: {test_acc:.2f}%")
 
         model.eval()
         with torch.no_grad():
@@ -321,32 +326,32 @@ def model_training(
         
         # Confusion Matrix
         cmatrix = confusion_matrix(true_labels, predictions)
-        print("Confusion Matrix:", cmatrix)
+        #print("Confusion Matrix:", cmatrix)
 
         # Metrics
         accuracy = accuracy_score(true_labels, predictions)
         metrics.log_metric("Accuracy", accuracy)
-        print('Accuracy: %f' % accuracy)
+        #print('Accuracy: %f' % accuracy)
 
         precision = precision_score(true_labels,  predictions, average='weighted')
         metrics.log_metric("Precision", precision)
-        print('Precision: %f' % precision)
+        #print('Precision: %f' % precision)
 
         recall = recall_score(true_labels, predictions, average='weighted')
         metrics.log_metric("Recall", recall)
-        print('Recall: %f' % recall)
+        #print('Recall: %f' % recall)
 
         microf1 = f1_score(true_labels, predictions, average='micro')
         metrics.log_metric("Micro F1 score", microf1)
-        print('Micro F1 score: %f' % microf1)
+        #print('Micro F1 score: %f' % microf1)
 
         macrof1 = f1_score(true_labels, predictions, average='macro')
         metrics.log_metric("Macro F1 score", macrof1)
-        print('Macro F1 score: %f' % macrof1)
+        #print('Macro F1 score: %f' % macrof1)
 
         target_names = ['No-Stall', 'Stall']
         # Print precision-recall report
-        print(classification_report(true_labels, predictions, target_names=target_names))
+        #print(classification_report(true_labels, predictions, target_names=target_names))
 
         # Classification Metrics artifact
         cmatrix = cmatrix.tolist()
@@ -358,65 +363,9 @@ def model_training(
         torch.save(model.state_dict(), model_path)
         os.rename(model_path, model_trained_artifact.path)
         
-
-@component(base_image="python:3.11.9", packages_to_install=['kserve','kubernetes'])
-def model_serving(
-    model_trained_artifact : Input[Model]
-    ):
-    # Create kserve instance
-    from kubernetes import client 
-    from kserve import KServeClient, constants, utils, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec
-    from datetime import datetime
-    import time
-    from subprocess import run
-
-    # check kubernetes and kserve versions
-    packages = run(
-        ['pip', 'freeze'],
-        capture_output=True,
-        text=True,
-        check=True
-            )
-    print(packages)
-    
-    #get model uri
-    uri = model_trained_artifact.uri
-    #replace minio with s3
-    uri = uri.replace("minio","s3")
-    
-    #TFServing wants this type of structure ./models/1/model
-    # the number represent the model version
-    # in this example we use only 1 version
-    
-    #Inference server config
-    namespace = utils.get_default_target_namespace()
-    now = datetime.now()
-    name="youtubegoes5g"
-    kserve_version='v1beta1'
-    api_version = constants.KSERVE_GROUP + '/' + kserve_version
-
-    isvc = V1beta1InferenceService(api_version=api_version,
-                                   kind=constants.KSERVE_KIND,
-                                   metadata=client.V1ObjectMeta(
-                                       name=name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),
-                                   spec=V1beta1InferenceServiceSpec(
-                                   predictor=V1beta1PredictorSpec(
-                                       service_account_name="sa-minio-kserve",
-                                       pytorch=(V1beta1TorchServeSpec(
-                                           storage_uri=uri))))
-    )
-
-    KServe = KServeClient()
-    
-    #replace old inference service with a new one
-    try:
-        KServe.delete(name=name, namespace=namespace)
-        print("Old model deleted")
-    except:
-        print("Couldn't delete old model")
-    time.sleep(10)
-    
-    KServe.create(isvc)
+kserve_op = components.load_component_from_url(
+    "https://raw.githubusercontent.com/kubeflow/pipelines/master/components/kserve/component.yaml"
+)
 
 @pipeline
 def my_pipeline(
@@ -431,7 +380,10 @@ def my_pipeline(
     access_key: str,
     secret_key: str,
     dvc_file_dir: str,
-    dvc_file_name: str
+    dvc_file_name: str,
+    model_name: str,
+    framework: str,
+    action: str = 'apply'
 ):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
@@ -457,7 +409,13 @@ def my_pipeline(
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
     model_trained_artifact = model_training_task.outputs["model_trained_artifact"]
-    model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
+    kserve_op(
+        action=action,
+        model_name=model_name,
+        model_uri=model_trained_artifact.path,
+        framework=framework
+    )
+    #model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -483,5 +441,12 @@ client.create_run_from_pipeline_func(
         'access_key': ACCESS_KEY,
         'secret_key': SECRET_KEY,
         'dvc_file_dir': DVC_FILE_DIR,
-        'dvc_file_name': DVC_FILE_NAME
+        'dvc_file_name': DVC_FILE_NAME,
+        'model_name': MODEL_NAME,
+        'framework': FRAMEWORK
     })
+
+#upload to Kubeflow 
+client.upload_pipeline(pipeline_package_path=pipeline_filename,
+                       pipeline_name="mlops",
+                       namespace = "kubeflow")

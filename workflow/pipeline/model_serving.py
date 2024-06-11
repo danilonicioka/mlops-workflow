@@ -1,7 +1,7 @@
 import kfp
 from kfp.dsl import component, Input, Model
 
-@component(base_image="python:3.11.9", packages_to_install=['kserve','kubernetes'])
+@component(base_image="python:3.11.9", packages_to_install=['kserve==0.13.0','kubernetes==30.1.0'])
 def model_serving(
     model_trained_artifact : Input[Model]
     ):
@@ -10,6 +10,7 @@ def model_serving(
     from kserve import KServeClient, constants, utils, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec
     from datetime import datetime
     import time
+    from subprocess import run
     
     #get model uri
     uri = model_trained_artifact.uri
