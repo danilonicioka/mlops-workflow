@@ -226,6 +226,7 @@ def model_training(
     epochs: int = 3500,
     print_every: int = 500
     ):
+    import os
     import torch
     from torch import nn
     from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score
