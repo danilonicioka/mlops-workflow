@@ -1,6 +1,6 @@
 import kfp
 from kfp import components
-from kfp.dsl import component, pipeline, Input, Output, Dataset, Model, Metrics, ClassificationMetrics
+from kfp.dsl import component, pipeline, Input, Output, Dataset, Model, Metrics, ClassificationMetrics, OutputPath
 import os
 from dotenv import load_dotenv
 
@@ -227,6 +227,7 @@ def model_training(
     metrics: Output[Metrics], 
     classification_metrics: Output[ClassificationMetrics], 
     model_trained_artifact: Output[Model],
+    model_trained_artifact_path: OutputPath(str),
     lr: float = 0.0001,
     epochs: int = 3500,
     print_every: int = 500
@@ -362,6 +363,9 @@ def model_training(
         model_path = "/tmp/model.pt"
         torch.save(model.state_dict(), model_path)
         os.rename(model_path, model_trained_artifact.path)
+
+        with open(model_trained_artifact_path, 'w') as f:
+            f.write(model_trained_artifact.path)
         
 kserve_op = components.load_component_from_url(
     "https://raw.githubusercontent.com/kubeflow/pipelines/master/components/kserve/component.yaml"
@@ -408,11 +412,11 @@ def my_pipeline(
                                          X_test_artifact=X_test_artifact, 
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
-    model_trained_artifact = model_training_task.outputs["model_trained_artifact"]
-    kserve_op(
+    model_trained_artifact_path = model_training_task.outputs["model_trained_artifact_path"]
+    kserve_task = kserve_op(
         action=action,
         model_name=model_name,
-        model_uri=model_trained_artifact.path,
+        model_uri=model_trained_artifact_path,
         framework=framework
     )
     #model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
@@ -447,6 +451,6 @@ client.create_run_from_pipeline_func(
     })
 
 #upload to Kubeflow 
-client.upload_pipeline(pipeline_package_path=pipeline_filename,
-                       pipeline_name="mlops",
-                       namespace = "kubeflow")
+# client.upload_pipeline(pipeline_package_path=pipeline_filename,
+#                        pipeline_name="mlops",
+#                        namespace = "kubeflow")

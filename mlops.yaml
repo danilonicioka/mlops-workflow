@@ -2,13 +2,16 @@
 # Name: my-pipeline
 # Inputs:
 #    access_key: str
+#    action: str [Default: 'apply']
 #    branch_name: str
 #    cloned_dir: str
 #    dvc_file_dir: str
 #    dvc_file_name: str
+#    framework: str
 #    github_token: str
 #    github_username: str
 #    minio_url: str
+#    model_name: str
 #    remote_name: str
 #    remote_url: str
 #    repo_url: str
@@ -86,14 +89,6 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
-  comp-model-serving:
-    executorLabel: exec-model-serving
-    inputDefinitions:
-      artifacts:
-        model_trained_artifact:
-          artifactType:
-            schemaTitle: system.Model
-            schemaVersion: 0.0.1
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -141,6 +136,93 @@ components:
           artifactType:
             schemaTitle: system.Model
             schemaVersion: 0.0.1
+      parameters:
+        model_trained_artifact_path:
+          parameterType: STRING
+  comp-serve-a-model-with-kserve:
+    executorLabel: exec-serve-a-model-with-kserve
+    inputDefinitions:
+      parameters:
+        action:
+          defaultValue: create
+          isOptional: true
+          parameterType: STRING
+        autoscaling_target:
+          defaultValue: '0'
+          isOptional: true
+          parameterType: STRING
+        canary_traffic_percent:
+          defaultValue: '100'
+          isOptional: true
+          parameterType: STRING
+        custom_model_spec:
+          defaultValue: '{}'
+          isOptional: true
+          parameterType: STRING
+        enable_istio_sidecar:
+          defaultValue: true
+          isOptional: true
+          parameterType: BOOLEAN
+        enable_isvc_status:
+          defaultValue: true
+          isOptional: true
+          parameterType: BOOLEAN
+        framework:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        inferenceservice_yaml:
+          defaultValue: '{}'
+          isOptional: true
+          parameterType: STRING
+        max_replicas:
+          defaultValue: '-1'
+          isOptional: true
+          parameterType: STRING
+        min_replicas:
+          defaultValue: '-1'
+          isOptional: true
+          parameterType: STRING
+        model_name:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        model_uri:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        namespace:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        request_timeout:
+          defaultValue: '60'
+          isOptional: true
+          parameterType: STRING
+        resource_limits:
+          defaultValue: '{"cpu": "1", "memory": "1Gi"}'
+          isOptional: true
+          parameterType: STRING
+        resource_requests:
+          defaultValue: '{"cpu": "0.5", "memory": "512Mi"}'
+          isOptional: true
+          parameterType: STRING
+        runtime_version:
+          defaultValue: latest
+          isOptional: true
+          parameterType: STRING
+        service_account:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        watch_timeout:
+          defaultValue: '300'
+          isOptional: true
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        inferenceservice_status:
+          parameterType: STRING
 deploymentSpec:
   executors:
     exec-data-ingestion:
@@ -294,59 +376,6 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
-    exec-model-serving:
-      container:
-        args:
-        - --executor_input
-        - '{{$}}'
-        - --function_to_execute
-        - model_serving
-        command:
-        - sh
-        - -c
-        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
-          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
-          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
-        - sh
-        - -ec
-        - 'program_path=$(mktemp -d)
-
-
-          printf "%s" "$0" > "$program_path/ephemeral_component.py"
-
-          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
-
-          '
-        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef model_serving(\n    model_trained_artifact : Input[Model]\n \
-          \   ):\n    # Create kserve instance\n    from kubernetes import client\
-          \ \n    from kserve import KServeClient, constants, utils, V1beta1InferenceService,\
-          \ V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec\n\
-          \    from datetime import datetime\n    import time\n    from subprocess\
-          \ import run\n\n    #get model uri\n    uri = model_trained_artifact.uri\n\
-          \    #replace minio with s3\n    uri = uri.replace(\"minio\",\"s3\")\n\n\
-          \    #TFServing wants this type of structure ./models/1/model\n    # the\
-          \ number represent the model version\n    # in this example we use only\
-          \ 1 version\n\n    #Inference server config\n    namespace = utils.get_default_target_namespace()\n\
-          \    now = datetime.now()\n    name=\"youtubegoes5g\"\n    kserve_version='v1beta1'\n\
-          \    api_version = constants.KSERVE_GROUP + '/' + kserve_version\n\n   \
-          \ isvc = V1beta1InferenceService(api_version=api_version,\n            \
-          \                       kind=constants.KSERVE_KIND,\n                  \
-          \                 metadata=client.V1ObjectMeta(\n                      \
-          \                 name=name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
-          \                                   spec=V1beta1InferenceServiceSpec(\n\
-          \                                   predictor=V1beta1PredictorSpec(\n  \
-          \                                     service_account_name=\"sa-minio-kserve\"\
-          ,\n                                       pytorch=(V1beta1TorchServeSpec(\n\
-          \                                           storage_uri=uri))))\n    )\n\
-          \n    KServe = KServeClient()\n\n    #replace old inference service with\
-          \ a new one\n    try:\n        KServe.delete(name=name, namespace=namespace)\n\
-          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
-          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
-        image: python:3.11.9
     exec-model-training:
       container:
         args:
@@ -378,20 +407,21 @@ deploymentSpec:
           \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
-          \ Output[Model],\n    lr: float = 0.0001,\n    epochs: int = 3500,\n   \
-          \ print_every: int = 500\n    ):\n    import os\n    import torch\n    from\
-          \ torch import nn\n    from sklearn.metrics import accuracy_score, confusion_matrix,\
-          \ classification_report, precision_score, recall_score, f1_score\n\n   \
-          \ # Build model with non-linear activation function\n    class InterruptionModel(nn.Module):\n\
-          \        def __init__(self):\n            super().__init__()\n         \
-          \   self.layer_1 = nn.Linear(in_features=29, out_features=200)\n       \
-          \     self.layer_2 = nn.Linear(in_features=200, out_features=100)\n    \
-          \        self.layer_3 = nn.Linear(in_features=100, out_features=1)\n   \
-          \         self.relu = nn.ReLU() # <- add in ReLU activation function\n \
-          \           # Can also put sigmoid in the model\n            # This would\
-          \ mean you don't need to use it on the predictions\n            # self.sigmoid\
-          \ = nn.Sigmoid()\n\n        def forward(self, x):\n            # Intersperse\
-          \ the ReLU activation function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \ Output[Model],\n    model_trained_artifact_path: OutputPath(str),\n  \
+          \  lr: float = 0.0001,\n    epochs: int = 3500,\n    print_every: int =\
+          \ 500\n    ):\n    import os\n    import torch\n    from torch import nn\n\
+          \    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report,\
+          \ precision_score, recall_score, f1_score\n\n    # Build model with non-linear\
+          \ activation function\n    class InterruptionModel(nn.Module):\n       \
+          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
+          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
+          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
+          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
+          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
+          \ put sigmoid in the model\n            # This would mean you don't need\
+          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
+          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
+          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
           \n    device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n    model\
           \ = InterruptionModel().to(device)\n\n    # Setup loss and optimizer\n \
           \   loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
@@ -418,7 +448,7 @@ deploymentSpec:
           \ loss and accuracy\n            test_loss = loss_fn(test_logits, y_test)\n\
           \            test_acc = accuracy_fn(y_true=y_test,\n                   \
           \             y_pred=test_pred)\n\n\n        # Print out what's happening\n\
-          \        if epoch % print_every == 0:\n            print(f\"Epoch: {epoch}\
+          \        #if epoch % print_every == 0:\n        #    print(f\"Epoch: {epoch}\
           \ | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f},\
           \ Test Accuracy: {test_acc:.2f}%\")\n\n        model.eval()\n        with\
           \ torch.no_grad():\n            y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
@@ -426,27 +456,76 @@ deploymentSpec:
           \ #if it is cuda, then this, otherwise y_pred.numpy()\n            true_labels\
           \ = y_test.cpu().numpy()\n        else:\n            predictions = y_preds.numpy()\n\
           \            true_labels = y_test.numpy()\n\n        # Confusion Matrix\n\
-          \        cmatrix = confusion_matrix(true_labels, predictions)\n        print(\"\
+          \        cmatrix = confusion_matrix(true_labels, predictions)\n        #print(\"\
           Confusion Matrix:\", cmatrix)\n\n        # Metrics\n        accuracy = accuracy_score(true_labels,\
           \ predictions)\n        metrics.log_metric(\"Accuracy\", accuracy)\n   \
-          \     print('Accuracy: %f' % accuracy)\n\n        precision = precision_score(true_labels,\
+          \     #print('Accuracy: %f' % accuracy)\n\n        precision = precision_score(true_labels,\
           \  predictions, average='weighted')\n        metrics.log_metric(\"Precision\"\
-          , precision)\n        print('Precision: %f' % precision)\n\n        recall\
+          , precision)\n        #print('Precision: %f' % precision)\n\n        recall\
           \ = recall_score(true_labels, predictions, average='weighted')\n       \
-          \ metrics.log_metric(\"Recall\", recall)\n        print('Recall: %f' % recall)\n\
-          \n        microf1 = f1_score(true_labels, predictions, average='micro')\n\
-          \        metrics.log_metric(\"Micro F1 score\", microf1)\n        print('Micro\
+          \ metrics.log_metric(\"Recall\", recall)\n        #print('Recall: %f' %\
+          \ recall)\n\n        microf1 = f1_score(true_labels, predictions, average='micro')\n\
+          \        metrics.log_metric(\"Micro F1 score\", microf1)\n        #print('Micro\
           \ F1 score: %f' % microf1)\n\n        macrof1 = f1_score(true_labels, predictions,\
           \ average='macro')\n        metrics.log_metric(\"Macro F1 score\", macrof1)\n\
-          \        print('Macro F1 score: %f' % macrof1)\n\n        target_names =\
-          \ ['No-Stall', 'Stall']\n        # Print precision-recall report\n     \
-          \   print(classification_report(true_labels, predictions, target_names=target_names))\n\
+          \        #print('Macro F1 score: %f' % macrof1)\n\n        target_names\
+          \ = ['No-Stall', 'Stall']\n        # Print precision-recall report\n   \
+          \     #print(classification_report(true_labels, predictions, target_names=target_names))\n\
           \n        # Classification Metrics artifact\n        cmatrix = cmatrix.tolist()\n\
           \        target_names = ['No-Stall', 'Stall']\n        classification_metrics.log_confusion_matrix(target_names,\
           \ cmatrix)\n\n        # Save model\n        model_path = \"/tmp/model.pt\"\
           \n        torch.save(model.state_dict(), model_path)\n        os.rename(model_path,\
-          \ model_trained_artifact.path)\n\n"
+          \ model_trained_artifact.path)\n\n        with open(model_trained_artifact_path,\
+          \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n"
         image: python:3.11.9
+    exec-serve-a-model-with-kserve:
+      container:
+        args:
+        - -u
+        - kservedeployer.py
+        - --action
+        - '{{$.inputs.parameters[''action'']}}'
+        - --model-name
+        - '{{$.inputs.parameters[''model_name'']}}'
+        - --model-uri
+        - '{{$.inputs.parameters[''model_uri'']}}'
+        - --canary-traffic-percent
+        - '{{$.inputs.parameters[''canary_traffic_percent'']}}'
+        - --namespace
+        - '{{$.inputs.parameters[''namespace'']}}'
+        - --framework
+        - '{{$.inputs.parameters[''framework'']}}'
+        - --runtime-version
+        - '{{$.inputs.parameters[''runtime_version'']}}'
+        - --resource-requests
+        - '{{$.inputs.parameters[''resource_requests'']}}'
+        - --resource-limits
+        - '{{$.inputs.parameters[''resource_limits'']}}'
+        - --custom-model-spec
+        - '{{$.inputs.parameters[''custom_model_spec'']}}'
+        - --autoscaling-target
+        - '{{$.inputs.parameters[''autoscaling_target'']}}'
+        - --service-account
+        - '{{$.inputs.parameters[''service_account'']}}'
+        - --enable-istio-sidecar
+        - '{{$.inputs.parameters[''enable_istio_sidecar'']}}'
+        - --output-path
+        - '{{$.outputs.parameters[''inferenceservice_status''].output_file}}'
+        - --inferenceservice-yaml
+        - '{{$.inputs.parameters[''inferenceservice_yaml'']}}'
+        - --watch-timeout
+        - '{{$.inputs.parameters[''watch_timeout'']}}'
+        - --min-replicas
+        - '{{$.inputs.parameters[''min_replicas'']}}'
+        - --max-replicas
+        - '{{$.inputs.parameters[''max_replicas'']}}'
+        - --request-timeout
+        - '{{$.inputs.parameters[''request_timeout'']}}'
+        - --enable-isvc-status
+        - '{{$.inputs.parameters[''enable_isvc_status'']}}'
+        command:
+        - python
+        image: quay.io/aipipeline/kserve-component:v0.12.0
 pipelineInfo:
   name: my-pipeline
 root:
@@ -510,21 +589,6 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
-      model-serving:
-        cachingOptions:
-          enableCache: true
-        componentRef:
-          name: comp-model-serving
-        dependentTasks:
-        - model-training
-        inputs:
-          artifacts:
-            model_trained_artifact:
-              taskOutputArtifact:
-                outputArtifactKey: model_trained_artifact
-                producerTask: model-training
-        taskInfo:
-          name: model-serving
       model-training:
         cachingOptions:
           enableCache: true
@@ -552,9 +616,34 @@ root:
                 producerTask: data-preparation
         taskInfo:
           name: model-training
+      serve-a-model-with-kserve:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-serve-a-model-with-kserve
+        dependentTasks:
+        - model-training
+        inputs:
+          parameters:
+            action:
+              componentInputParameter: action
+            framework:
+              componentInputParameter: framework
+            model_name:
+              componentInputParameter: model_name
+            model_uri:
+              taskOutputParameter:
+                outputParameterKey: model_trained_artifact_path
+                producerTask: model-training
+        taskInfo:
+          name: serve-a-model-with-kserve
   inputDefinitions:
     parameters:
       access_key:
+        parameterType: STRING
+      action:
+        defaultValue: apply
+        isOptional: true
         parameterType: STRING
       branch_name:
         parameterType: STRING
@@ -564,11 +653,15 @@ root:
         parameterType: STRING
       dvc_file_name:
         parameterType: STRING
+      framework:
+        parameterType: STRING
       github_token:
         parameterType: STRING
       github_username:
         parameterType: STRING
       minio_url:
+        parameterType: STRING
+      model_name:
         parameterType: STRING
       remote_name:
         parameterType: STRING
