@@ -10,12 +10,14 @@
 #    framework: str
 #    github_token: str
 #    github_username: str
+#    kserve_namespace: str
 #    minio_url: str
 #    model_name: str
 #    remote_name: str
 #    remote_url: str
 #    repo_url: str
 #    secret_key: str
+#    svc_account: str
 # Outputs:
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
@@ -632,9 +634,16 @@ root:
             model_name:
               componentInputParameter: model_name
             model_uri:
+              runtimeValue:
+                constant: '{{$.inputs.parameters[''pipelinechannel--model-training-model_trained_artifact_path'']}}'
+            namespace:
+              componentInputParameter: kserve_namespace
+            pipelinechannel--model-training-model_trained_artifact_path:
               taskOutputParameter:
                 outputParameterKey: model_trained_artifact_path
                 producerTask: model-training
+            service_account:
+              componentInputParameter: svc_account
         taskInfo:
           name: serve-a-model-with-kserve
   inputDefinitions:
@@ -659,6 +668,8 @@ root:
         parameterType: STRING
       github_username:
         parameterType: STRING
+      kserve_namespace:
+        parameterType: STRING
       minio_url:
         parameterType: STRING
       model_name:
@@ -670,6 +681,8 @@ root:
       repo_url:
         parameterType: STRING
       secret_key:
+        parameterType: STRING
+      svc_account:
         parameterType: STRING
   outputDefinitions:
     artifacts:

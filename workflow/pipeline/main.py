@@ -31,6 +31,8 @@ DVC_FILE_NAME = 'dataset.csv'
 # Model serve config vars
 MODEL_NAME = "youtubegoes5g"
 FRAMEWORK = "pytorch"
+KSERVE_NAMESPACE = "kserve"
+SVC_ACCOUNT = "pipeline-runner"
 
 # Define a KFP component factory function for data ingestion
 @component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
@@ -387,6 +389,8 @@ def my_pipeline(
     dvc_file_name: str,
     model_name: str,
     framework: str,
+    kserve_namespace: str,
+    svc_account: str,
     action: str = 'apply'
 ):
     data_ingestion_task = data_ingestion(
@@ -413,11 +417,17 @@ def my_pipeline(
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
     model_trained_artifact_path = model_training_task.outputs["model_trained_artifact_path"]
+
+    # Replace 'http://' with 's3://' for kserve model uri
+    model_trained_artifact_s3_path = str(model_trained_artifact_path).replace("http://", "s3://")
+
     kserve_task = kserve_op(
         action=action,
         model_name=model_name,
-        model_uri=model_trained_artifact_path,
-        framework=framework
+        model_uri=model_trained_artifact_s3_path,
+        namespace=kserve_namespace,
+        framework=framework,
+        service_account=svc_account
     )
     #model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
 
@@ -447,7 +457,9 @@ client.create_run_from_pipeline_func(
         'dvc_file_dir': DVC_FILE_DIR,
         'dvc_file_name': DVC_FILE_NAME,
         'model_name': MODEL_NAME,
-        'framework': FRAMEWORK
+        'framework': FRAMEWORK,
+        'kserve_namespace': KSERVE_NAMESPACE,
+        'svc_account': SVC_ACCOUNT
     })
 
 #upload to Kubeflow 
