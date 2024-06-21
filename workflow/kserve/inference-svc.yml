@@ -7,4 +7,4 @@ spec:
     model:
       modelFormat:
         name: pytorch
-      storageUri: s3://kubeflow.com/artifacts/minio/mlpipeline/v2/artifacts/my-pipeline/095e86d3-fd2e-4f5f-8bb6-a965fd1cb3be/model-training/model_trained_artifact"
+      storageUri: "s3://kubeflow.com/artifacts/minio/mlpipeline/v2/artifacts/my-pipeline/095e86d3-fd2e-4f5f-8bb6-a965fd1cb3be/model-training/model_trained_artifact"
