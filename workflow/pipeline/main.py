@@ -220,7 +220,7 @@ def data_preparation(
     os.rename(y_test_path, y_test_artifact.path)
 
 # Component for model training
-@component(base_image="python:3.11.9", packages_to_install=['torch==2.3.0', 'scikit-learn==1.2.2'])
+@component(base_image="python:3.11.9", packages_to_install=['torch==2.3.0', 'scikit-learn==1.2.2', 'numpy==1.25.2'])
 def model_training(
     X_train_artifact: Input[Dataset], 
     X_test_artifact: Input[Dataset],
