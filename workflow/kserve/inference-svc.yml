@@ -1,4 +1,4 @@
-apiVersion: "serving.kserve.io/v1beta1"
+apiVersion: "serving.kserve.io/v1alpha2"
 kind: "InferenceService"
 metadata:
   name: "torchserve"
@@ -7,4 +7,4 @@ spec:
     model:
       modelFormat:
         name: pytorch
-      storageUri: s3://kubeflow.com/artifacts/minio/mlpipeline/v2/artifacts/my-pipeline/187e20a7-cc18-409b-a546-2350deb55813/model-training/model_trained_artifact
+      storageUri: s3://kubeflow.com/artifacts/minio/mlpipeline/v2/artifacts/my-pipeline/095e86d3-fd2e-4f5f-8bb6-a965fd1cb3be/model-training/model_trained_artifact"
