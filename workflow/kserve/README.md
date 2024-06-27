@@ -1,1 +1,1 @@
-torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file models/model.py --serialized-file http://kubeflow.com/artifacts/minio/mlpipeline/v2/artifacts/my-pipeline/095e86d3-fd2e-4f5f-8bb6-a965fd1cb3be/model-training/model_trained_artifact --handler https://raw.githubusercontent.com/pytorch/serve/master/ts/torch_handler/base_handler.py
+torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file models/model.py --serialized-file models/model_trained_artifact.pt --handler models/handler.py
