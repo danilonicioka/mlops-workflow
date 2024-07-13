@@ -5,5 +5,5 @@ metadata:
 spec:
  predictor:
    pytorch:
-     protocolVersion: v1
+     protocolVersion: v2
      storageUri: "pvc://model-store-claim"
