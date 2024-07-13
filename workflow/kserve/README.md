@@ -2,6 +2,8 @@ torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file model
 
 kubectl create namespace kserve-test
 
+kubectl config set-context --current --namespace=kserve-test
+
 kubectl apply -f workflow/kserve/pvc.yml -n kserve-test
 
 kubectl apply -f workflow/kserve/pv_pod.yml -n kserve-test
