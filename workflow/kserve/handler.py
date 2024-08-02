@@ -11,6 +11,7 @@ import time
 
 import packaging.version
 import torch
+import ts
 
 from ts.handler_utils.timer import timed
 

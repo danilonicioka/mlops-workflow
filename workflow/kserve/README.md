@@ -4,15 +4,15 @@ kubectl create namespace kserve-test
 
 kubectl config set-context --current --namespace=kserve-test
 
-kubectl apply -f workflow/kserve/pvc.yml -n kserve-test
+kubectl apply -f pvc.yml -n kserve-test
 
-kubectl apply -f workflow/kserve/pv_pod.yml -n kserve-test
+kubectl apply -f pv_pod.yml -n kserve-test
 
 # Create directory in PV
 kubectl exec -it model-store-pod -c model-store -n kserve-test -- mkdir /pv/model-store/
 kubectl exec -it model-store-pod -c model-store -n kserve-test -- mkdir /pv/config/
 # Copy files the path
-kubectl cp workflow/kserve/youtubegoes5g.mar model-store-pod:/pv/model-store/ -c model-store -n kserve-test
-kubectl cp workflow/kserve/config.properties model-store-pod:/pv/config/ -c model-store -n kserve-test
+kubectl cp youtubegoes5g.mar model-store-pod:/pv/model-store/ -c model-store -n kserve-test
+kubectl cp config.properties model-store-pod:/pv/config/ -c model-store -n kserve-test
 
-k apply -f workflow/kserve/is.yml -n kserve-test
+k apply -f is.yml -n kserve-test
