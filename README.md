@@ -6,7 +6,7 @@ Local run
 k port-forward svc/minio-svc -n minio 9090 9000
 ```
 ```
-k port-forward svc/ml-pipeline-ui 3000:80
+k port-forward svc/ml-pipeline-ui -n kubeflow 3000:80
 ```
 
 ==============================
