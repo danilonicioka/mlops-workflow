@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: kubeflow-ui
-  namespace: istio-system
+  namespace: kubeflow
 spec:
   ingressClassName: nginx
   rules:
@@ -13,6 +13,6 @@ spec:
         path: "/"
         backend:
           service:
-            name: istio-ingressgateway
+            name: ml-pipeline-ui
             port:
               number: 80
