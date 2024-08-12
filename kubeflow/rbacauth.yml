@@ -2,7 +2,7 @@ apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
   name: allow-all-from-same-ns
-  namespace: kubeflow-user-example-com
+  namespace: kubeflow
 spec:
   action: ALLOW
   rules:
