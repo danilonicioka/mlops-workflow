@@ -10,9 +10,9 @@
 #    framework: str
 #    github_token: str
 #    github_username: str
-#    kserve_namespace: str
 #    minio_url: str
 #    model_name: str
+#    namespace: str
 #    remote_name: str
 #    remote_url: str
 #    repo_url: str
@@ -637,7 +637,7 @@ root:
               runtimeValue:
                 constant: '{{$.inputs.parameters[''pipelinechannel--model-training-model_trained_artifact_path'']}}'
             namespace:
-              componentInputParameter: kserve_namespace
+              componentInputParameter: namespace
             pipelinechannel--model-training-model_trained_artifact_path:
               taskOutputParameter:
                 outputParameterKey: model_trained_artifact_path
@@ -668,11 +668,11 @@ root:
         parameterType: STRING
       github_username:
         parameterType: STRING
-      kserve_namespace:
-        parameterType: STRING
       minio_url:
         parameterType: STRING
       model_name:
+        parameterType: STRING
+      namespace:
         parameterType: STRING
       remote_name:
         parameterType: STRING
