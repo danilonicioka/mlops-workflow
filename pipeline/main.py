@@ -371,8 +371,8 @@ def model_training(
         
 @component(base_image="python:3.11.9", packages_to_install=['kserve==0.13.0','kubernetes==30.1.0'])
 def model_serving(
-    namespace,
-    model_name
+    namespace: str,
+    model_name: str
 ):
     # Create kserve instance
     from kubernetes import client 
