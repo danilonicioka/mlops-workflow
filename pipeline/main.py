@@ -31,7 +31,7 @@ DVC_FILE_NAME = 'dataset.csv'
 # Model serve config vars
 MODEL_NAME = "youtubegoes5g"
 FRAMEWORK = "pytorch"
-NAMESPACE = "kubeflow"
+NAMESPACE = "kubeflow-user-example-com"
 SVC_ACCOUNT = "pipeline-runner"
 
 # Define a KFP component factory function for data ingestion
@@ -369,9 +369,52 @@ def model_training(
         with open(model_trained_artifact_path, 'w') as f:
             f.write(model_trained_artifact.path)
         
-kserve_op = components.load_component_from_url(
-    "https://raw.githubusercontent.com/kubeflow/pipelines/master/components/kserve/component.yaml"
-)
+@component(base_image="python:3.11.9", packages_to_install=['kserve==0.13.0','kubernetes==30.1.0'])
+def model_serving(
+    namespace,
+    model_name
+):
+    # Create kserve instance
+    from kubernetes import client 
+    from kserve import KServeClient, constants, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec
+    from datetime import datetime
+    import time
+    from subprocess import run
+    
+    #get model uri
+    uri = "pvc://model-store-claim"
+    
+    #TFServing wants this type of structure ./models/1/model
+    # the number represent the model version
+    # in this example we use only 1 version
+    
+    #Inference server config
+    now = datetime.now()
+    kserve_version='v1beta1'
+    api_version = constants.KSERVE_GROUP + '/' + kserve_version
+
+    isvc = V1beta1InferenceService(api_version=api_version,
+                                   kind=constants.KSERVE_KIND,
+                                   metadata=client.V1ObjectMeta(
+                                       name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),
+                                   spec=V1beta1InferenceServiceSpec(
+                                   predictor=V1beta1PredictorSpec(
+                                       service_account_name="sa-minio-kserve",
+                                       pytorch=(V1beta1TorchServeSpec(
+                                           storage_uri=uri))))
+    )
+
+    KServe = KServeClient()
+    
+    #replace old inference service with a new one
+    try:
+        KServe.delete(name=model_name, namespace=namespace)
+        print("Old model deleted")
+    except:
+        print("Couldn't delete old model")
+    time.sleep(10)
+    
+    KServe.create(isvc)
 
 @pipeline
 def my_pipeline(
@@ -387,11 +430,8 @@ def my_pipeline(
     secret_key: str,
     dvc_file_dir: str,
     dvc_file_name: str,
-    model_name: str,
-    framework: str,
     namespace: str,
-    svc_account: str,
-    action: str = 'apply'
+    model_name: str
 ):
     data_ingestion_task = data_ingestion(
         repo_url=repo_url,
@@ -417,19 +457,7 @@ def my_pipeline(
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
     model_trained_artifact_path = model_training_task.outputs["model_trained_artifact_path"]
-
-    # Replace 'http://' with 's3://' for kserve model uri
-    model_trained_artifact_s3_path = str(model_trained_artifact_path).replace("http://", "s3://")
-
-    kserve_task = kserve_op(
-        action=action,
-        model_name=model_name,
-        model_uri=model_trained_artifact_s3_path,
-        namespace=namespace,
-        framework=framework,
-        service_account=svc_account
-    )
-    #model_serving_task = model_serving(model_trained_artifact=model_trained_artifact)
+    model_serving_task = model_serving(namespace, model_name)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
@@ -441,8 +469,7 @@ kfp.compiler.Compiler().compile(
 client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
 
 client.create_run_from_pipeline_func(
-    my_pipeline, 
-    enable_caching=False,
+    my_pipeline,
     arguments={
         'repo_url': REPO_URL,
         'cloned_dir': CLONED_DIR,
@@ -456,10 +483,8 @@ client.create_run_from_pipeline_func(
         'secret_key': SECRET_KEY,
         'dvc_file_dir': DVC_FILE_DIR,
         'dvc_file_name': DVC_FILE_NAME,
-        'model_name': MODEL_NAME,
-        'framework': FRAMEWORK,
         'namespace': NAMESPACE,
-        'svc_account': SVC_ACCOUNT
+        'model_name': MODEL_NAME
     })
 
 #upload to Kubeflow 
