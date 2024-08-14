@@ -15,4 +15,4 @@ kubectl exec -it model-store-pod -c model-store -n kserve-test -- mkdir /pv/conf
 kubectl cp youtubegoes5g.mar model-store-pod:/pv/model-store/ -c model-store -n kserve-test
 kubectl cp config.properties model-store-pod:/pv/config/ -c model-store -n kserve-test
 
-k apply -f is.yml -n kserve-test
+k apply -f is_kserve.yml -n kserve-test
