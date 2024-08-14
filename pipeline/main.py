@@ -457,7 +457,8 @@ def my_pipeline(
                                          y_train_artifact=y_train_artifact, 
                                          y_test_artifact=y_test_artifact)
     model_trained_artifact_path = model_training_task.outputs["model_trained_artifact_path"]
-    model_serving_task = model_serving(namespace, model_name)
+    model_serving_task = model_serving(namespace=namespace, 
+                                       model_name=model_name)
 
 # Compile the pipeline
 pipeline_filename = f"{PIPELINE_NAME}.yaml"
