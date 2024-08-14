@@ -17,7 +17,7 @@ CLONED_DIR = "mlops-workflow"
 BRANCH_NAME = "tests"
 PIPELINE_ID = "my-pipeline-id"
 PIPELINE_NAME = "mlops"
-KFP_HOST = "http://kubeflow.com"  # KFP host URL
+KFP_HOST = "http://ml-pipeline.kubeflow.svc.cluster.local:8888"  # KFP host URL
 
 # Define DVC remote configuration variables
 REMOTE_NAME = "minio_remote"
@@ -33,6 +33,9 @@ MODEL_NAME = "youtubegoes5g"
 FRAMEWORK = "pytorch"
 NAMESPACE = "kubeflow-user-example-com"
 SVC_ACCOUNT = "pipeline-runner"
+
+with open(os.environ['KF_PIPELINES_SA_TOKEN_PATH'], "r") as f:
+    TOKEN = f.read()
 
 # Define a KFP component factory function for data ingestion
 @component(base_image="python:3.11.9",packages_to_install=['gitpython', 'dvc==3.51.1', 'dvc-s3==3.2.0', 'numpy==1.25.2', 'pandas==2.0.3'])
@@ -467,7 +470,9 @@ kfp.compiler.Compiler().compile(
     package_path=pipeline_filename)
 
 # Submit the pipeline to the KFP cluster
-client = kfp.Client(host=KFP_HOST)  # Use the configured KFP host
+client = kfp.Client(host=KFP_HOST, # Use the configured KFP host
+                    existing_token=TOKEN)  
+
 
 client.create_run_from_pipeline_func(
     my_pipeline,

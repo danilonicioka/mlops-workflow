@@ -2,12 +2,10 @@
 # Name: my-pipeline
 # Inputs:
 #    access_key: str
-#    action: str [Default: 'apply']
 #    branch_name: str
 #    cloned_dir: str
 #    dvc_file_dir: str
 #    dvc_file_name: str
-#    framework: str
 #    github_token: str
 #    github_username: str
 #    minio_url: str
@@ -17,7 +15,6 @@
 #    remote_url: str
 #    repo_url: str
 #    secret_key: str
-#    svc_account: str
 # Outputs:
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
@@ -91,6 +88,14 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-model-serving:
+    executorLabel: exec-model-serving
+    inputDefinitions:
+      parameters:
+        model_name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -140,90 +145,6 @@ components:
             schemaVersion: 0.0.1
       parameters:
         model_trained_artifact_path:
-          parameterType: STRING
-  comp-serve-a-model-with-kserve:
-    executorLabel: exec-serve-a-model-with-kserve
-    inputDefinitions:
-      parameters:
-        action:
-          defaultValue: create
-          isOptional: true
-          parameterType: STRING
-        autoscaling_target:
-          defaultValue: '0'
-          isOptional: true
-          parameterType: STRING
-        canary_traffic_percent:
-          defaultValue: '100'
-          isOptional: true
-          parameterType: STRING
-        custom_model_spec:
-          defaultValue: '{}'
-          isOptional: true
-          parameterType: STRING
-        enable_istio_sidecar:
-          defaultValue: true
-          isOptional: true
-          parameterType: BOOLEAN
-        enable_isvc_status:
-          defaultValue: true
-          isOptional: true
-          parameterType: BOOLEAN
-        framework:
-          defaultValue: ''
-          isOptional: true
-          parameterType: STRING
-        inferenceservice_yaml:
-          defaultValue: '{}'
-          isOptional: true
-          parameterType: STRING
-        max_replicas:
-          defaultValue: '-1'
-          isOptional: true
-          parameterType: STRING
-        min_replicas:
-          defaultValue: '-1'
-          isOptional: true
-          parameterType: STRING
-        model_name:
-          defaultValue: ''
-          isOptional: true
-          parameterType: STRING
-        model_uri:
-          defaultValue: ''
-          isOptional: true
-          parameterType: STRING
-        namespace:
-          defaultValue: ''
-          isOptional: true
-          parameterType: STRING
-        request_timeout:
-          defaultValue: '60'
-          isOptional: true
-          parameterType: STRING
-        resource_limits:
-          defaultValue: '{"cpu": "1", "memory": "1Gi"}'
-          isOptional: true
-          parameterType: STRING
-        resource_requests:
-          defaultValue: '{"cpu": "0.5", "memory": "512Mi"}'
-          isOptional: true
-          parameterType: STRING
-        runtime_version:
-          defaultValue: latest
-          isOptional: true
-          parameterType: STRING
-        service_account:
-          defaultValue: ''
-          isOptional: true
-          parameterType: STRING
-        watch_timeout:
-          defaultValue: '300'
-          isOptional: true
-          parameterType: STRING
-    outputDefinitions:
-      parameters:
-        inferenceservice_status:
           parameterType: STRING
 deploymentSpec:
   executors:
@@ -378,6 +299,57 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-model-serving:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_serving
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
+          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_serving(\n    namespace: str,\n    model_name: str\n):\n\
+          \    # Create kserve instance\n    from kubernetes import client \n    from\
+          \ kserve import KServeClient, constants, V1beta1InferenceService, V1beta1InferenceServiceSpec,\
+          \ V1beta1PredictorSpec, V1beta1TorchServeSpec\n    from datetime import\
+          \ datetime\n    import time\n    from subprocess import run\n\n    #get\
+          \ model uri\n    uri = \"pvc://model-store-claim\"\n\n    #TFServing wants\
+          \ this type of structure ./models/1/model\n    # the number represent the\
+          \ model version\n    # in this example we use only 1 version\n\n    #Inference\
+          \ server config\n    now = datetime.now()\n    kserve_version='v1beta1'\n\
+          \    api_version = constants.KSERVE_GROUP + '/' + kserve_version\n\n   \
+          \ isvc = V1beta1InferenceService(api_version=api_version,\n            \
+          \                       kind=constants.KSERVE_KIND,\n                  \
+          \                 metadata=client.V1ObjectMeta(\n                      \
+          \                 name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
+          \                                   spec=V1beta1InferenceServiceSpec(\n\
+          \                                   predictor=V1beta1PredictorSpec(\n  \
+          \                                     service_account_name=\"sa-minio-kserve\"\
+          ,\n                                       pytorch=(V1beta1TorchServeSpec(\n\
+          \                                           storage_uri=uri))))\n    )\n\
+          \n    KServe = KServeClient()\n\n    #replace old inference service with\
+          \ a new one\n    try:\n        KServe.delete(name=model_name, namespace=namespace)\n\
+          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
+          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
+        image: python:3.11.9
     exec-model-training:
       container:
         args:
@@ -480,54 +452,6 @@ deploymentSpec:
           \ model_trained_artifact.path)\n\n        with open(model_trained_artifact_path,\
           \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n"
         image: python:3.11.9
-    exec-serve-a-model-with-kserve:
-      container:
-        args:
-        - -u
-        - kservedeployer.py
-        - --action
-        - '{{$.inputs.parameters[''action'']}}'
-        - --model-name
-        - '{{$.inputs.parameters[''model_name'']}}'
-        - --model-uri
-        - '{{$.inputs.parameters[''model_uri'']}}'
-        - --canary-traffic-percent
-        - '{{$.inputs.parameters[''canary_traffic_percent'']}}'
-        - --namespace
-        - '{{$.inputs.parameters[''namespace'']}}'
-        - --framework
-        - '{{$.inputs.parameters[''framework'']}}'
-        - --runtime-version
-        - '{{$.inputs.parameters[''runtime_version'']}}'
-        - --resource-requests
-        - '{{$.inputs.parameters[''resource_requests'']}}'
-        - --resource-limits
-        - '{{$.inputs.parameters[''resource_limits'']}}'
-        - --custom-model-spec
-        - '{{$.inputs.parameters[''custom_model_spec'']}}'
-        - --autoscaling-target
-        - '{{$.inputs.parameters[''autoscaling_target'']}}'
-        - --service-account
-        - '{{$.inputs.parameters[''service_account'']}}'
-        - --enable-istio-sidecar
-        - '{{$.inputs.parameters[''enable_istio_sidecar'']}}'
-        - --output-path
-        - '{{$.outputs.parameters[''inferenceservice_status''].output_file}}'
-        - --inferenceservice-yaml
-        - '{{$.inputs.parameters[''inferenceservice_yaml'']}}'
-        - --watch-timeout
-        - '{{$.inputs.parameters[''watch_timeout'']}}'
-        - --min-replicas
-        - '{{$.inputs.parameters[''min_replicas'']}}'
-        - --max-replicas
-        - '{{$.inputs.parameters[''max_replicas'']}}'
-        - --request-timeout
-        - '{{$.inputs.parameters[''request_timeout'']}}'
-        - --enable-isvc-status
-        - '{{$.inputs.parameters[''enable_isvc_status'']}}'
-        command:
-        - python
-        image: quay.io/aipipeline/kserve-component:v0.12.0
 pipelineInfo:
   name: my-pipeline
 root:
@@ -591,6 +515,19 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
+      model-serving:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-serving
+        inputs:
+          parameters:
+            model_name:
+              componentInputParameter: model_name
+            namespace:
+              componentInputParameter: namespace
+        taskInfo:
+          name: model-serving
       model-training:
         cachingOptions:
           enableCache: true
@@ -618,41 +555,9 @@ root:
                 producerTask: data-preparation
         taskInfo:
           name: model-training
-      serve-a-model-with-kserve:
-        cachingOptions:
-          enableCache: true
-        componentRef:
-          name: comp-serve-a-model-with-kserve
-        dependentTasks:
-        - model-training
-        inputs:
-          parameters:
-            action:
-              componentInputParameter: action
-            framework:
-              componentInputParameter: framework
-            model_name:
-              componentInputParameter: model_name
-            model_uri:
-              runtimeValue:
-                constant: '{{$.inputs.parameters[''pipelinechannel--model-training-model_trained_artifact_path'']}}'
-            namespace:
-              componentInputParameter: namespace
-            pipelinechannel--model-training-model_trained_artifact_path:
-              taskOutputParameter:
-                outputParameterKey: model_trained_artifact_path
-                producerTask: model-training
-            service_account:
-              componentInputParameter: svc_account
-        taskInfo:
-          name: serve-a-model-with-kserve
   inputDefinitions:
     parameters:
       access_key:
-        parameterType: STRING
-      action:
-        defaultValue: apply
-        isOptional: true
         parameterType: STRING
       branch_name:
         parameterType: STRING
@@ -661,8 +566,6 @@ root:
       dvc_file_dir:
         parameterType: STRING
       dvc_file_name:
-        parameterType: STRING
-      framework:
         parameterType: STRING
       github_token:
         parameterType: STRING
@@ -681,8 +584,6 @@ root:
       repo_url:
         parameterType: STRING
       secret_key:
-        parameterType: STRING
-      svc_account:
         parameterType: STRING
   outputDefinitions:
     artifacts:
