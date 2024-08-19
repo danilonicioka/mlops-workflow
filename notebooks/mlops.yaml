@@ -1,7 +1,6 @@
 # PIPELINE DEFINITION
 # Name: my-pipeline
 # Inputs:
-#    framework: str
 #    model_name: str
 #    model_uri: str
 #    namespace: str
@@ -157,14 +156,11 @@ root:
                 constant: apply
             inferenceservice_yaml:
               runtimeValue:
-                constant: "\napiVersion: \"serving.kserve.io/v1beta1\"\nkind: \"InferenceService\"\
+                constant: "\napiVersion: serving.kserve.io/v1beta1\nkind: \"InferenceService\"\
                   \nmetadata:\n  name: {{$.inputs.parameters['pipelinechannel--model_name']}}\n\
                   \  namespace: {{$.inputs.parameters['pipelinechannel--namespace']}}\n\
                   spec:\n  predictor:\n    model:\n      modelFormat:\n        name:\
-                  \ {{$.inputs.parameters['pipelinechannel--framework']}}\n      storageUri:\
-                  \ {{$.inputs.parameters['pipelinechannel--model_uri']}}\n"
-            pipelinechannel--framework:
-              componentInputParameter: framework
+                  \ pytorch\n      storageUri: {{$.inputs.parameters['pipelinechannel--model_uri']}}\n"
             pipelinechannel--model_name:
               componentInputParameter: model_name
             pipelinechannel--model_uri:
@@ -175,8 +171,6 @@ root:
           name: serve-a-model-with-kserve
   inputDefinitions:
     parameters:
-      framework:
-        parameterType: STRING
       model_name:
         parameterType: STRING
       model_uri:
@@ -184,4 +178,4 @@ root:
       namespace:
         parameterType: STRING
 schemaVersion: 2.1.0
-sdkVersion: kfp-2.7.0
+sdkVersion: kfp-2.4.0
