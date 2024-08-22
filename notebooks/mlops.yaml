@@ -405,8 +405,8 @@ deploymentSpec:
           \ model_trained_artifact.path)\n\n        with open(model_trained_artifact_path,\
           \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n     \
           \   # Initialize Minio client with just the base URL (without path)\n  \
-          \      client = Minio(\n            \"http://minio-service:9000\",  # Ensure\
-          \ minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \      client = Minio(\n            \"minio-service.kubeflow:9000\",  #\
+          \ Ensure minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
           \            access_key=access_key,\n            secret_key=secret_key,\n\
           \            secure=False  # Minio is using HTTP on localhost:9000\n   \
           \     )\n\n        # Create the bucket if it does not exist\n        if\
