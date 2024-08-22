@@ -3,15 +3,20 @@
 # Inputs:
 #    access_key: str
 #    branch_name: str
+#    bucket_name: str
 #    cloned_dir: str
 #    dvc_file_dir: str
 #    dvc_file_name: str
+#    epochs: int
 #    github_token: str
 #    github_username: str
+#    lr: float
 #    minio_url: str
 #    model_name: str
 #    model_uri: str
 #    namespace: str
+#    object_name: str
+#    print_frequency: int
 #    remote_name: str
 #    remote_url: str
 #    repo_url: str
@@ -110,18 +115,22 @@ components:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
       parameters:
+        access_key:
+          parameterType: STRING
+        bucket_name:
+          parameterType: STRING
         epochs:
-          defaultValue: 3500.0
-          isOptional: true
           parameterType: NUMBER_INTEGER
         lr:
-          defaultValue: 0.0001
-          isOptional: true
           parameterType: NUMBER_DOUBLE
-        print_every:
-          defaultValue: 500.0
-          isOptional: true
+        minio_url:
+          parameterType: STRING
+        object_name:
+          parameterType: STRING
+        print_frequency:
           parameterType: NUMBER_INTEGER
+        secret_key:
+          parameterType: STRING
     outputDefinitions:
       artifacts:
         classification_metrics:
@@ -307,7 +316,7 @@ deploymentSpec:
           \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
           \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
           \  python3 -m pip install --quiet --no-warn-script-location 'torch==2.3.0'\
-          \ 'scikit-learn==1.2.2' 'numpy==1.25.2' && \"$0\" \"$@\"\n"
+          \ 'scikit-learn==1.2.2' 'numpy==1.25.2' 'Minio==7.2.5' && \"$0\" \"$@\"\n"
         - sh
         - -ec
         - 'program_path=$(mktemp -d)
@@ -324,20 +333,22 @@ deploymentSpec:
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
           \ Output[Model],\n    model_trained_artifact_path: OutputPath(str),\n  \
-          \  lr: float = 0.0001,\n    epochs: int = 3500,\n    print_every: int =\
-          \ 500\n    ):\n    import os\n    import torch\n    from torch import nn\n\
-          \    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report,\
-          \ precision_score, recall_score, f1_score\n\n    # Build model with non-linear\
-          \ activation function\n    class InterruptionModel(nn.Module):\n       \
-          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
-          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
-          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
-          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
-          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
-          \ put sigmoid in the model\n            # This would mean you don't need\
-          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
-          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
-          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \  lr: float,\n    epochs: int,\n    print_frequency: int,\n    minio_url:\
+          \ str,\n    access_key: str,\n    secret_key: str,\n    bucket_name: str,\n\
+          \    object_name: str\n    ):\n    import os\n    import torch\n    from\
+          \ torch import nn\n    from sklearn.metrics import accuracy_score, confusion_matrix,\
+          \ classification_report, precision_score, recall_score, f1_score\n    from\
+          \ minio import Minio\n\n    # Build model with non-linear activation function\n\
+          \    class InterruptionModel(nn.Module):\n        def __init__(self):\n\
+          \            super().__init__()\n            self.layer_1 = nn.Linear(in_features=29,\
+          \ out_features=200)\n            self.layer_2 = nn.Linear(in_features=200,\
+          \ out_features=100)\n            self.layer_3 = nn.Linear(in_features=100,\
+          \ out_features=1)\n            self.relu = nn.ReLU() # <- add in ReLU activation\
+          \ function\n            # Can also put sigmoid in the model\n          \
+          \  # This would mean you don't need to use it on the predictions\n     \
+          \       # self.sigmoid = nn.Sigmoid()\n\n        def forward(self, x):\n\
+          \            # Intersperse the ReLU activation function between layers\n\
+          \            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
           \n    device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n    model\
           \ = InterruptionModel().to(device)\n\n    # Setup loss and optimizer\n \
           \   loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
@@ -392,7 +403,23 @@ deploymentSpec:
           \ cmatrix)\n\n        # Save model\n        model_path = \"/tmp/model.pt\"\
           \n        torch.save(model.state_dict(), model_path)\n        os.rename(model_path,\
           \ model_trained_artifact.path)\n\n        with open(model_trained_artifact_path,\
-          \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n"
+          \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n     \
+          \   # Initialize Minio client with just the base URL (without path)\n  \
+          \      client = Minio(\n            \"http://minio-service:9000\",  # Ensure\
+          \ minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \            access_key=access_key,\n            secret_key=secret_key,\n\
+          \            secure=False  # Minio is using HTTP on localhost:9000\n   \
+          \     )\n\n        # Create the bucket if it does not exist\n        if\
+          \ not client.bucket_exists(bucket_name):\n            client.make_bucket(bucket_name)\n\
+          \            logger.info(f\"Successfully created bucket: {bucket_name}\"\
+          )\n        else:\n            logger.info(f\"Bucket {bucket_name} already\
+          \ exists\")\n\n        try:\n            # Upload the model file to the\
+          \ specified path in the bucket\n            client.fput_object(bucket_name,\
+          \ object_name, model_trained_artifact_path)\n            logger.info(f'Successfully\
+          \ uploaded {model_file_path} to {bucket_name}/{object_name}')\n\n      \
+          \  except Exception as e:\n            # Log and raise any upload errors\n\
+          \            logger.error(f'Failed to upload model to Minio: {e}')\n   \
+          \         raise Exception(f'Failed to upload model to Minio: {e}')\n\n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
@@ -482,6 +509,23 @@ root:
               taskOutputArtifact:
                 outputArtifactKey: y_train_artifact
                 producerTask: data-preparation
+          parameters:
+            access_key:
+              componentInputParameter: access_key
+            bucket_name:
+              componentInputParameter: bucket_name
+            epochs:
+              componentInputParameter: epochs
+            lr:
+              componentInputParameter: lr
+            minio_url:
+              componentInputParameter: minio_url
+            object_name:
+              componentInputParameter: object_name
+            print_frequency:
+              componentInputParameter: print_frequency
+            secret_key:
+              componentInputParameter: secret_key
         taskInfo:
           name: model-training
   inputDefinitions:
@@ -490,16 +534,22 @@ root:
         parameterType: STRING
       branch_name:
         parameterType: STRING
+      bucket_name:
+        parameterType: STRING
       cloned_dir:
         parameterType: STRING
       dvc_file_dir:
         parameterType: STRING
       dvc_file_name:
         parameterType: STRING
+      epochs:
+        parameterType: NUMBER_INTEGER
       github_token:
         parameterType: STRING
       github_username:
         parameterType: STRING
+      lr:
+        parameterType: NUMBER_DOUBLE
       minio_url:
         parameterType: STRING
       model_name:
@@ -508,6 +558,10 @@ root:
         parameterType: STRING
       namespace:
         parameterType: STRING
+      object_name:
+        parameterType: STRING
+      print_frequency:
+        parameterType: NUMBER_INTEGER
       remote_name:
         parameterType: STRING
       remote_url:
