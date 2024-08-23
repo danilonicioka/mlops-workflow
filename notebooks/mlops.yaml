@@ -404,22 +404,27 @@ deploymentSpec:
           \n        torch.save(model.state_dict(), model_path)\n        os.rename(model_path,\
           \ model_trained_artifact.path)\n\n        with open(model_trained_artifact_path,\
           \ 'w') as f:\n            f.write(model_trained_artifact.path)\n\n     \
-          \   # Initialize Minio client with just the base URL (without path)\n  \
-          \      client = Minio(\n            \"minio-service.kubeflow:9000\",  #\
-          \ Ensure minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
-          \            access_key=access_key,\n            secret_key=secret_key,\n\
-          \            secure=False  # Minio is using HTTP on localhost:9000\n   \
-          \     )\n\n        # Create the bucket if it does not exist\n        if\
-          \ not client.bucket_exists(bucket_name):\n            client.make_bucket(bucket_name)\n\
-          \            logger.info(f\"Successfully created bucket: {bucket_name}\"\
-          )\n        else:\n            logger.info(f\"Bucket {bucket_name} already\
-          \ exists\")\n\n        try:\n            # Upload the model file to the\
-          \ specified path in the bucket\n            client.fput_object(bucket_name,\
-          \ object_name, model_trained_artifact_path)\n            logger.info(f'Successfully\
-          \ uploaded {model_file_path} to {bucket_name}/{object_name}')\n\n      \
-          \  except Exception as e:\n            # Log and raise any upload errors\n\
-          \            logger.error(f'Failed to upload model to Minio: {e}')\n   \
-          \         raise Exception(f'Failed to upload model to Minio: {e}')\n\n"
+          \   def upload_model(minio_url, access_key, secret_key, bucket_name, object_name):\n\
+          \            \"\"\"Create a Minio client and ensure the bucket exists.\"\
+          \"\"\n            # Initialize Minio client with just the base URL (without\
+          \ path)\n            client = Minio(\n                minio_url,  # Ensure\
+          \ minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \                access_key=access_key,\n                secret_key=secret_key,\n\
+          \                secure=False  # Minio is using HTTP on localhost:9000\n\
+          \            )\n\n            # Create the bucket if it does not exist\n\
+          \            if not client.bucket_exists(bucket_name):\n               \
+          \ client.make_bucket(bucket_name)\n                create_bucket_result\
+          \ = f\"Successfully created bucket: {bucket_name}\"\n            else:\n\
+          \                create_bucket_result = f\"Bucket {bucket_name} already\
+          \ exists\"\n\n            try:\n                # Upload the model file\
+          \ to the specified path in the bucket\n                client.fput_object(bucket_name,\
+          \ object_name, model_trained_artifact_path)\n                return (f'Successfully\
+          \ uploaded {model_trained_artifact_path} to {bucket_name}/{object_name}')\n\
+          \n            except Exception as e:\n                # Log and raise any\
+          \ upload errors\n                raise Exception(f'Failed to upload model\
+          \ to Minio: {e}')\n                return (f'Failed to upload model to Minio:\
+          \ {e}')\n\n        upload_model_result = upload_model(\"minio-service.kubeflow:9000\"\
+          , access_key, secret_key, bucket_name, object_name)\n\n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
