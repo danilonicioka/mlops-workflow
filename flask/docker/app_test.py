@@ -45,7 +45,8 @@ config = {
     "EPOCHS": int(os.environ.get('EPOCHS', 3500)),  # Number of epochs, converted to int
     "PRINT_FREQUENCY": int(os.environ.get('PRINT_FREQUENCY', 500)),  # Print frequency, converted to int
     "OBJECT_NAME": os.environ.get('OBJECT_NAME', 'model-files'),
-    "SVC_ACC": os.environ.get('SVC_ACC', 'sa-minio-kserve')
+    "SVC_ACC": os.environ.get('SVC_ACC', 'sa-minio-kserve'),
+    "PIPELINE_ID": os.environ.get('PIPELINE_ID', '7451916e-eee8-4c14-ad5f-8dee5aa61e3b')
 }
 
 # File paths and commit messages constants
@@ -411,7 +412,7 @@ def append_csv():
         }
 
         # Execute the pipeline
-        execute_pipeline_run(pipeline_id='your_pipeline_id_here', params=pipeline_params)
+        execute_pipeline_run(pipeline_id=config['PIPELINE_ID'], params=pipeline_params)
 
         # Flash a success message
         flash('Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository, and executed the pipeline.')
