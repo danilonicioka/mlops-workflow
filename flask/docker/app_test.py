@@ -37,7 +37,7 @@ config = {
     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
     "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
     "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
-    "KFP_HOST": os.environ.get('KFP_HOST', 'http://ml-pipeline.kubeflow:8888'),
+    "KFP_HOST": os.environ.get('KFP_HOST', 'localhost:8080'),
     "KFP_AUTH_TOKEN": os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
     "MODEL_NAME": os.environ.get('MODEL_NAME', 'youtubegoes5g'),
     "NAMESPACE": os.environ.get('NAMESPACE', 'kubeflow-user-example-com'),
@@ -263,7 +263,7 @@ def execute_pipeline_run(pipeline_id, params):
     """Execute an existing pipeline on Kubeflow."""
     try:
         # Define the KFP client with authentication token
-        client = Client(host=config['KFP_HOST'], token=config['KFP_AUTH_TOKEN'])
+        client = Client(host=config['KFP_HOST'], existing_token=config['KFP_AUTH_TOKEN'])
 
         # Execute the pipeline
         run = client.run_pipeline(
