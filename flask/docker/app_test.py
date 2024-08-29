@@ -427,15 +427,26 @@ def perform_dvc_pull(cloned_dir):
 
 def append_csv_data(source_csv, target_csv):
     """Append data from the source CSV file to the target CSV file."""
-    with open(source_csv, 'r') as source_file:
-        reader = csv.reader(source_file)
-        
-        # Append rows from the source file to the target file
-        with open(target_csv, 'a', newline='') as target_file:
-            writer = csv.writer(target_file)
-            for row in reader:
-                writer.writerow(row)
-    logger.info(f"Successfully appended data from {source_csv} to {target_csv}")
+    try:
+        # Open the target file in append mode, and ensure it ends with a newline
+        with open(target_csv, 'a+', newline='') as target_file:
+            target_file.seek(0, 2)  # Move the cursor to the end of the file
+            if target_file.tell() > 0:  # If the file is not empty
+                target_file.write('\n')  # Add a newline to avoid merging the last line with the first row of source
+
+        # Now append rows from the source file to the target file
+        with open(source_csv, 'r') as source_file:
+            reader = csv.reader(source_file)
+            with open(target_csv, 'a', newline='') as target_file:
+                writer = csv.writer(target_file)
+                for row in reader:
+                    writer.writerow(row)
+        logger.info(f"Successfully appended data from {source_csv} to {target_csv}")
+
+    except FileNotFoundError:
+        logger.error(f"File not found: {source_csv} or {target_csv}")
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
 
 # Helper function to execute an existing pipeline on Kubeflow
 def execute_pipeline_run(kfp_host, dex_user, dex_pass, namespace, job_name, params, pipeline_id, version_id, svc_acc):
