@@ -37,8 +37,6 @@ config = {
     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
     "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
     "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
-    "KFP_HOST": os.environ.get('KFP_HOST', 'localhost:8080'),
-    "KFP_AUTH_TOKEN": os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
     "MODEL_NAME": os.environ.get('MODEL_NAME', 'youtubegoes5g'),
     "NAMESPACE": os.environ.get('NAMESPACE', 'kubeflow-user-example-com'),
     "LR": float(os.environ.get('LR', 0.0001)),  # Learning rate, converted to float
@@ -46,7 +44,13 @@ config = {
     "PRINT_FREQUENCY": int(os.environ.get('PRINT_FREQUENCY', 500)),  # Print frequency, converted to int
     "OBJECT_NAME": os.environ.get('OBJECT_NAME', 'model-files'),
     "SVC_ACC": os.environ.get('SVC_ACC', 'sa-minio-kserve'),
-    "PIPELINE_ID": os.environ.get('PIPELINE_ID', '7451916e-eee8-4c14-ad5f-8dee5aa61e3b')
+    "PIPELINE_ID": os.environ.get('PIPELINE_ID', '7451916e-eee8-4c14-ad5f-8dee5aa61e3b'),
+    "VERSION_ID": os.environ.get('VERSION_ID', '264564bb-0ada-4095-920f-ae3bb9d8ca2e'),
+    "KFP_HOST": os.environ.get('KFP_HOST', 'http://localhost:8080'),
+    "KFP_AUTH_TOKEN": os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
+    "DEX_USER": os.environ.get('DEX_USER'),
+    "DEX_PASS": os.environ.get('DEX_PASS'),
+    "SVC_ACC_KFP": os.environ.get('SVC_ACC', 'default-editor'),
 }
 
 # File paths and commit messages constants
@@ -55,6 +59,181 @@ GITIGNORE_PATH = os.path.join(config["DVC_FILE_DIR"], '.gitignore')
 
 COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 COMMIT_MSG_APPEND = 'Update .dvc file'
+
+# manage ids
+# exp_id = 0
+
+####### Class to access kubeflow from outside the cluster
+
+import re
+from urllib.parse import urlsplit, urlencode
+
+import kfp
+import requests
+import urllib3
+
+
+class KFPClientManager:
+    """
+    A class that creates `kfp.Client` instances with Dex authentication.
+    """
+
+    def __init__(
+        self,
+        api_url: str,
+        dex_username: str,
+        dex_password: str,
+        dex_auth_type: str = "local",
+        skip_tls_verify: bool = False,
+    ):
+        """
+        Initialize the KfpClient
+
+        :param api_url: the Kubeflow Pipelines API URL
+        :param skip_tls_verify: if True, skip TLS verification
+        :param dex_username: the Dex username
+        :param dex_password: the Dex password
+        :param dex_auth_type: the auth type to use if Dex has multiple enabled, one of: ['ldap', 'local']
+        """
+        self._api_url = api_url
+        self._skip_tls_verify = skip_tls_verify
+        self._dex_username = dex_username
+        self._dex_password = dex_password
+        self._dex_auth_type = dex_auth_type
+        self._client = None
+
+        # disable SSL verification, if requested
+        if self._skip_tls_verify:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        # ensure `dex_default_auth_type` is valid
+        if self._dex_auth_type not in ["ldap", "local"]:
+            raise ValueError(
+                f"Invalid `dex_auth_type` '{self._dex_auth_type}', must be one of: ['ldap', 'local']"
+            )
+
+    def _get_session_cookies(self) -> str:
+        """
+        Get the session cookies by authenticating against Dex
+        :return: a string of session cookies in the form "key1=value1; key2=value2"
+        """
+
+        # use a persistent session (for cookies)
+        s = requests.Session()
+
+        # GET the api_url, which should redirect to Dex
+        resp = s.get(
+            self._api_url, allow_redirects=True, verify=not self._skip_tls_verify
+        )
+        if resp.status_code == 200:
+            pass
+        elif resp.status_code == 403:
+            # if we get 403, we might be at the oauth2-proxy sign-in page
+            # the default path to start the sign-in flow is `/oauth2/start?rd=<url>`
+            url_obj = urlsplit(resp.url)
+            url_obj = url_obj._replace(
+                path="/oauth2/start", query=urlencode({"rd": url_obj.path})
+            )
+            resp = s.get(
+                url_obj.geturl(), allow_redirects=True, verify=not self._skip_tls_verify
+            )
+        else:
+            raise RuntimeError(
+                f"HTTP status code '{resp.status_code}' for GET against: {self._api_url}"
+            )
+
+        # if we were NOT redirected, then the endpoint is unsecured
+        if len(resp.history) == 0:
+            # no cookies are needed
+            return ""
+
+        # if we are at `../auth` path, we need to select an auth type
+        url_obj = urlsplit(resp.url)
+        if re.search(r"/auth$", url_obj.path):
+            url_obj = url_obj._replace(
+                path=re.sub(r"/auth$", f"/auth/{self._dex_auth_type}", url_obj.path)
+            )
+
+        # if we are at `../auth/xxxx/login` path, then we are at the login page
+        if re.search(r"/auth/.*/login$", url_obj.path):
+            dex_login_url = url_obj.geturl()
+        else:
+            # otherwise, we need to follow a redirect to the login page
+            resp = s.get(
+                url_obj.geturl(), allow_redirects=True, verify=not self._skip_tls_verify
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"HTTP status code '{resp.status_code}' for GET against: {url_obj.geturl()}"
+                )
+            dex_login_url = resp.url
+
+        # attempt Dex login
+        resp = s.post(
+            dex_login_url,
+            data={"login": self._dex_username, "password": self._dex_password},
+            allow_redirects=True,
+            verify=not self._skip_tls_verify,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"HTTP status code '{resp.status_code}' for POST against: {dex_login_url}"
+            )
+
+        # if we were NOT redirected, then the login credentials were probably invalid
+        if len(resp.history) == 0:
+            raise RuntimeError(
+                f"Login credentials are probably invalid - "
+                f"No redirect after POST to: {dex_login_url}"
+            )
+
+        # if we are at `../approval` path, we need to approve the login
+        url_obj = urlsplit(resp.url)
+        if re.search(r"/approval$", url_obj.path):
+            dex_approval_url = url_obj.geturl()
+
+            # approve the login
+            resp = s.post(
+                dex_approval_url,
+                data={"approval": "approve"},
+                allow_redirects=True,
+                verify=not self._skip_tls_verify,
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"HTTP status code '{resp.status_code}' for POST against: {url_obj.geturl()}"
+                )
+
+        return "; ".join([f"{c.name}={c.value}" for c in s.cookies])
+
+    def _create_kfp_client(self) -> kfp.Client:
+        try:
+            session_cookies = self._get_session_cookies()
+        except Exception as ex:
+            raise RuntimeError(f"Failed to get Dex session cookies") from ex
+
+        # monkey patch the kfp.Client to support disabling SSL verification
+        # kfp only added support in v2: https://github.com/kubeflow/pipelines/pull/7174
+        original_load_config = kfp.Client._load_config
+
+        def patched_load_config(client_self, *args, **kwargs):
+            config = original_load_config(client_self, *args, **kwargs)
+            config.verify_ssl = not self._skip_tls_verify
+            return config
+
+        patched_kfp_client = kfp.Client
+        patched_kfp_client._load_config = patched_load_config
+
+        return patched_kfp_client(
+            host=self._api_url,
+            cookies=session_cookies,
+        )
+
+    def create_kfp_client(self) -> kfp.Client:
+        """Get a newly authenticated Kubeflow Pipelines client."""
+        return self._create_kfp_client()
+
+##########################################################
 
 # Helper functions
 
@@ -259,18 +438,41 @@ def append_csv_data(source_csv, target_csv):
     logger.info(f"Successfully appended data from {source_csv} to {target_csv}")
 
 # Helper function to execute an existing pipeline on Kubeflow
-def execute_pipeline_run(pipeline_id, params):
+def execute_pipeline_run(kfp_host, dex_user, dex_pass, namespace, job_name, params, pipeline_id, version_id, svc_acc):
+    # initialize a KFPClientManager
+    kfp_client_manager = KFPClientManager(
+        api_url=f'{kfp_host}/pipeline',
+        skip_tls_verify=True,
+
+        dex_username=dex_user,
+        dex_password=dex_pass,
+
+        # can be 'ldap' or 'local' depending on your Dex configuration
+        dex_auth_type="local",
+    )
+
+    # get a newly authenticated KFP client
+    # TIP: long-lived sessions might need to get a new client when their session expires
+    client = kfp_client_manager.create_kfp_client()
+
+    # test the client by listing experiments
+    experiments = client.list_experiments(namespace=namespace)
+    print(experiments)
+
+    # update exp_id
+    # global exp_id
+    # exp_id += 1
+
     """Execute an existing pipeline on Kubeflow."""
     try:
-        # Define the KFP client with authentication token
-        client = Client(host=config['KFP_HOST'], existing_token=config['KFP_AUTH_TOKEN'])
-
         # Execute the pipeline
         run = client.run_pipeline(
-            experiment_id='default',  # Specify the experiment ID if needed
-            job_name='append-csv-job',  # A name for the pipeline run
+            experiment_id="23d52751-4aeb-4e71-a47e-01c1ced25793",
+            job_name=job_name,  # A name for the pipeline run
+            params=params,
             pipeline_id=pipeline_id,
-            params=params
+            version_id=version_id,
+            service_account=svc_acc
         )
 
         logger.info(f"Pipeline run created successfully: {run.run_id}")
@@ -411,8 +613,10 @@ def append_csv():
             'svc_acc': config["SVC_ACC"]
         }
 
+        job_name = "always retrain trigger job"
+
         # Execute the pipeline
-        execute_pipeline_run(pipeline_id=config['PIPELINE_ID'], params=pipeline_params)
+        execute_pipeline_run(kfp_host=config['KFP_HOST'], dex_user=config['DEX_USER'], dex_pass=config['DEX_PASS'], namespace=config['NAMESPACE'], job_name=job_name, params=pipeline_params, pipeline_id=config['PIPELINE_ID'], version_id=config['VERSION_ID'] , svc_acc=config['SVC_ACC_KFP'])
 
         # Flash a success message
         flash('Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository, and executed the pipeline.')
