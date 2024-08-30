@@ -21,6 +21,7 @@
 #    repo_url: str
 #    secret_key: str
 #    svc_acc: str
+#    trigger_type: str
 # Outputs:
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
@@ -94,21 +95,6 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
-  comp-model-serving:
-    executorLabel: exec-model-serving
-    inputDefinitions:
-      artifacts:
-        model_uri:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
-      parameters:
-        model_name:
-          parameterType: STRING
-        namespace:
-          parameterType: STRING
-        svc_acc:
-          parameterType: STRING
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -145,6 +131,8 @@ components:
         print_frequency:
           parameterType: NUMBER_INTEGER
         secret_key:
+          parameterType: STRING
+        trigger_type:
           parameterType: STRING
     outputDefinitions:
       artifacts:
@@ -317,57 +305,6 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
-    exec-model-serving:
-      container:
-        args:
-        - --executor_input
-        - '{{$}}'
-        - --function_to_execute
-        - model_serving
-        command:
-        - sh
-        - -c
-        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
-          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
-          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
-        - sh
-        - -ec
-        - 'program_path=$(mktemp -d)
-
-
-          printf "%s" "$0" > "$program_path/ephemeral_component.py"
-
-          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
-
-          '
-        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef model_serving(\n    model_uri: Input[Artifact],\n    model_name:\
-          \ str,\n    namespace: str,\n    svc_acc: str\n):\n    # Create kserve instance\n\
-          \    from kubernetes import client \n    from kserve import KServeClient,\
-          \ constants, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
-          \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
-          \    from subprocess import run\n\n    #TFServing wants this type of structure\
-          \ ./models/1/model\n    # the number represent the model version\n    #\
-          \ in this example we use only 1 version\n\n    #Inference server config\n\
-          \    now = datetime.now()\n    kserve_version='v1beta1'\n    api_version\
-          \ = constants.KSERVE_GROUP + '/' + kserve_version\n\n    with open(model_uri.path)\
-          \ as f:\n        uri = f.read()\n    print(uri)\n\n    isvc = V1beta1InferenceService(api_version=api_version,\n\
-          \                                   kind=constants.KSERVE_KIND,\n      \
-          \                             metadata=client.V1ObjectMeta(\n          \
-          \                             name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
-          \                                   spec=V1beta1InferenceServiceSpec(\n\
-          \                                   predictor=V1beta1PredictorSpec(\n  \
-          \                                     service_account_name=svc_acc,\n  \
-          \                                     pytorch=(V1beta1TorchServeSpec(\n\
-          \                                           storage_uri=uri))))\n    )\n\
-          \n    KServe = KServeClient()\n\n    #replace old inference service with\
-          \ a new one\n    try:\n        KServe.delete(name=model_name, namespace=namespace)\n\
-          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
-          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
-        image: python:3.11.9
     exec-model-training:
       container:
         args:
@@ -401,20 +338,21 @@ deploymentSpec:
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
           \ Output[Model],\n    model_uri: Output[Artifact],    \n    lr: float,\n\
           \    epochs: int,\n    print_frequency: int,\n    minio_url: str,\n    access_key:\
-          \ str,\n    secret_key: str,\n    bucket_name: str,\n    object_name: str\n\
-          \    ):\n    import os\n    import torch\n    from torch import nn\n   \
-          \ from sklearn.metrics import accuracy_score, confusion_matrix, classification_report,\
-          \ precision_score, recall_score, f1_score\n    from minio import Minio\n\
-          \n    # Build model with non-linear activation function\n    class InterruptionModel(nn.Module):\n\
-          \        def __init__(self):\n            super().__init__()\n         \
-          \   self.layer_1 = nn.Linear(in_features=29, out_features=200)\n       \
-          \     self.layer_2 = nn.Linear(in_features=200, out_features=100)\n    \
-          \        self.layer_3 = nn.Linear(in_features=100, out_features=1)\n   \
-          \         self.relu = nn.ReLU() # <- add in ReLU activation function\n \
-          \           # Can also put sigmoid in the model\n            # This would\
-          \ mean you don't need to use it on the predictions\n            # self.sigmoid\
-          \ = nn.Sigmoid()\n\n        def forward(self, x):\n            # Intersperse\
-          \ the ReLU activation function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \ str,\n    secret_key: str,\n    bucket_name: str,\n    object_name: str,\n\
+          \    trigger_type: str\n    ):\n    import os\n    import torch\n    from\
+          \ torch import nn\n    from sklearn.metrics import accuracy_score, confusion_matrix,\
+          \ classification_report, precision_score, recall_score, f1_score\n    from\
+          \ minio import Minio\n\n    # Build model with non-linear activation function\n\
+          \    class InterruptionModel(nn.Module):\n        def __init__(self):\n\
+          \            super().__init__()\n            self.layer_1 = nn.Linear(in_features=29,\
+          \ out_features=200)\n            self.layer_2 = nn.Linear(in_features=200,\
+          \ out_features=100)\n            self.layer_3 = nn.Linear(in_features=100,\
+          \ out_features=1)\n            self.relu = nn.ReLU() # <- add in ReLU activation\
+          \ function\n            # Can also put sigmoid in the model\n          \
+          \  # This would mean you don't need to use it on the predictions\n     \
+          \       # self.sigmoid = nn.Sigmoid()\n\n        def forward(self, x):\n\
+          \            # Intersperse the ReLU activation function between layers\n\
+          \            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
           \n    device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n    model\
           \ = InterruptionModel().to(device)\n\n    # Setup loss and optimizer\n \
           \   loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
@@ -441,7 +379,7 @@ deploymentSpec:
           \ loss and accuracy\n            test_loss = loss_fn(test_logits, y_test)\n\
           \            test_acc = accuracy_fn(y_true=y_test,\n                   \
           \             y_pred=test_pred)\n\n\n        # Print out what's happening\n\
-          \        #if epoch % print_every == 0:\n        #    print(f\"Epoch: {epoch}\
+          \        if epoch % print_frequency == 0:\n            print(f\"Epoch: {epoch}\
           \ | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f},\
           \ Test Accuracy: {test_acc:.2f}%\")\n\n        model.eval()\n        with\
           \ torch.no_grad():\n            y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
@@ -486,11 +424,11 @@ deploymentSpec:
           \ uploaded {model_trained_artifact.path} to {bucket_name}/{object_name}')\n\
           \n            except Exception as e:\n                # Log and raise any\
           \ upload errors\n                raise Exception(f'Failed to upload model\
-          \ to Minio: {e}')\n                return (f'Failed to upload model to Minio:\
-          \ {e}')\n\n        upload_model_result = upload_model(minio_url, access_key,\
-          \ secret_key, bucket_name, object_name)\n\n        # export model_uri just\
-          \ so that the model serving exec just after the training\n        with open(model_uri.path,\
-          \ 'w') as f:\n            f.write(f's3://{bucket_name}')\n\n"
+          \ to Minio: {e}')\n\n        if trigger_type == '1':\n            upload_model_result\
+          \ = upload_model(minio_url, access_key, secret_key, bucket_name, object_name)\n\
+          \n        # export model_uri just so that the model serving exec just after\
+          \ the training\n        with open(model_uri.path, 'w') as f:\n         \
+          \   f.write(f's3://{bucket_name}')\n\n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
@@ -555,28 +493,6 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
-      model-serving:
-        cachingOptions:
-          enableCache: true
-        componentRef:
-          name: comp-model-serving
-        dependentTasks:
-        - model-training
-        inputs:
-          artifacts:
-            model_uri:
-              taskOutputArtifact:
-                outputArtifactKey: model_uri
-                producerTask: model-training
-          parameters:
-            model_name:
-              componentInputParameter: model_name
-            namespace:
-              componentInputParameter: namespace
-            svc_acc:
-              componentInputParameter: svc_acc
-        taskInfo:
-          name: model-serving
       model-training:
         cachingOptions:
           enableCache: true
@@ -619,6 +535,8 @@ root:
               componentInputParameter: print_frequency
             secret_key:
               componentInputParameter: secret_key
+            trigger_type:
+              componentInputParameter: trigger_type
         taskInfo:
           name: model-training
   inputDefinitions:
@@ -662,6 +580,8 @@ root:
       secret_key:
         parameterType: STRING
       svc_acc:
+        parameterType: STRING
+      trigger_type:
         parameterType: STRING
   outputDefinitions:
     artifacts:
