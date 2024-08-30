@@ -7,7 +7,8 @@ import requests
 import logging
 from subprocess import run, CalledProcessError
 from dotenv import load_dotenv
-from kfp import Client
+import kfp
+import pandas as pd
 
 # Load environment variables from an `.env` file
 load_dotenv()
@@ -425,28 +426,42 @@ def perform_dvc_pull(cloned_dir):
         logger.error(f"Error occurred during dvc pull: {e}")
         raise
 
-def append_csv_data(source_csv, target_csv):
-    """Append data from the source CSV file to the target CSV file."""
+def append_csv_data(source_csv_path, target_csv_path):
+    """Append data from the source CSV file to the target CSV file.
+
+    This function reads the source and target CSV files as pandas DataFrames, 
+    appends the data from the source to the target, and saves the result back 
+    to the target CSV file.
+
+    :param source_csv_path: Path to the source CSV file
+    :param target_csv_path: Path to the target CSV file
+    """
     try:
-        # Open the target file in append mode, and ensure it ends with a newline
-        with open(target_csv, 'a+', newline='') as target_file:
-            target_file.seek(0, 2)  # Move the cursor to the end of the file
-            if target_file.tell() > 0:  # If the file is not empty
-                target_file.write('\n')  # Add a newline to avoid merging the last line with the first row of source
+        # Read the source CSV file
+        source_df = pd.read_csv(source_csv_path)
+        logger.info(f"Successfully read source CSV file: {source_csv_path}")
 
-        # Now append rows from the source file to the target file
-        with open(source_csv, 'r') as source_file:
-            reader = csv.reader(source_file)
-            with open(target_csv, 'a', newline='') as target_file:
-                writer = csv.writer(target_file)
-                for row in reader:
-                    writer.writerow(row)
-        logger.info(f"Successfully appended data from {source_csv} to {target_csv}")
+        # Read the target CSV file
+        target_df = pd.read_csv(target_csv_path)
+        logger.info(f"Successfully read target CSV file: {target_csv_path}")
 
-    except FileNotFoundError:
-        logger.error(f"File not found: {source_csv} or {target_csv}")
+        # Append the source data to the target DataFrame
+        updated_df = pd.concat([target_df, source_df])
+        logger.info(f"Successfully appended data from {source_csv_path} to {target_csv_path}")
+
+        # Save the updated DataFrame back to the target CSV file
+        updated_df.to_csv(target_csv_path, index=False)
+        logger.info(f"Successfully saved updated CSV file: {target_csv_path}")
+
+    except pd.errors.EmptyDataError:
+        # Handle the case where the CSV file might be empty
+        logger.error(f"Empty CSV file encountered: {source_csv_path} or {target_csv_path}")
+        raise
+
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
+        # Log any other errors that occur during the operation
+        logger.error(f"Failed to append data from {source_csv_path} to {target_csv_path}: {e}")
+        raise
 
 # Helper function to execute an existing pipeline on Kubeflow
 def execute_pipeline_run(kfp_host, dex_user, dex_pass, namespace, job_name, params, pipeline_id, version_id, svc_acc):
