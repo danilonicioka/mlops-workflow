@@ -61,6 +61,8 @@ GITIGNORE_PATH = os.path.join(config["DVC_FILE_DIR"], '.gitignore')
 COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 COMMIT_MSG_APPEND = 'Update .dvc file'
 
+TRIGGER_TYPE = '1'
+
 # manage ids
 # exp_id = 0
 
@@ -584,6 +586,14 @@ def append_csv():
         if not uploaded_file.filename.endswith('.csv'):
             return jsonify({'error': 'Invalid file type. Only CSV files are allowed.'}), 400
         
+        # Retrieve the trigger type from the form
+        trigger_type = request.form.get('trigger_type')
+        if not trigger_type:
+            trigger_type = TRIGGER_TYPE
+            return jsonify({'error': 'Trigger type not provided'}), 400
+
+        logger.info(f"Trigger type received: {trigger_type}")
+        
         # Define the path where the uploaded file will be saved
         source_csv_path = os.path.join(config["CLONED_DIR"], 'temp_source.csv')
         
@@ -636,16 +646,44 @@ def append_csv():
             'print_frequency': config["PRINT_FREQUENCY"],
             'bucket_name': config["BUCKET_NAME"],
             'object_name': config["OBJECT_NAME"],
-            'svc_acc': config["SVC_ACC"]
+            'svc_acc': config["SVC_ACC"],
+            'trigger_type': trigger_type  # Include the trigger type in the pipeline parameters
         }
 
-        job_name = "always retrain trigger job"
+        exec_pipe = True
+        flash_msg = "Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository"
+        job_name = "Always retraining trigger job"
 
-        # Execute the pipeline
-        execute_pipeline_run(kfp_host=config['KFP_HOST'], dex_user=config['DEX_USER'], dex_pass=config['DEX_PASS'], namespace=config['NAMESPACE'], job_name=job_name, params=pipeline_params, pipeline_id=config['PIPELINE_ID'], version_id=config['VERSION_ID'] , svc_acc=config['SVC_ACC_KFP'])
+        # Determine the job name based on the trigger type
+        # if trigger_type == '0':
+        #     exec_pipe = False
+        # if trigger_type == '1':
+        #     flash_msg = f'{flash_msg}, and executed the pipeline.'
+        # elif trigger_type == '2':
+        #     job_name = "Quantity trigger job"
+        # elif trigger_type == '3':
+        #     job_name = "Performance trigger job"
+        # else:
+        #     job_name = "Conditional retraining job"
+        #     flash_msg = f'Trigger type {trigger_type} not defined'
+        #     exec_pipe = False
+
+        if exec_pipe:
+            # Execute the pipeline
+            execute_pipeline_run(
+                kfp_host=config['KFP_HOST'],
+                dex_user=config['DEX_USER'],
+                dex_pass=config['DEX_PASS'],
+                namespace=config['NAMESPACE'],
+                job_name=job_name,
+                params=pipeline_params,
+                pipeline_id=config['PIPELINE_ID'],
+                version_id=config['VERSION_ID'],
+                svc_acc=config['SVC_ACC_KFP']
+            )
 
         # Flash a success message
-        flash('Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository, and executed the pipeline.')
+        flash(flash_msg)
         
         # Clean up the temporary file after processing
         os.remove(source_csv_path)
