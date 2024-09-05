@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,10 +23,7 @@
         label {
             font-weight: bold;
         }
-        input[type="file"] {
-            margin: 10px 0;
-        }
-        select {
+        input[type="file"], input[type="number"], select {
             margin: 10px 0;
             padding: 5px;
             width: 100%;
@@ -46,10 +44,12 @@
 <body>
     <h1>Upload CSV File</h1>
     <form action="/append_csv" method="POST" enctype="multipart/form-data">
+        <!-- CSV File Input -->
         <label for="source_csv">Select CSV file:</label>
         <input type="file" name="source_csv" id="source_csv" accept=".csv" required><br><br>
 
-        <!--
+        <!-- Trigger Type Dropdown and Quantity Factor Input -->
+    <!--
         <label for="trigger_type">Select Trigger Type:</label>
         <select name="trigger_type" id="trigger_type" required>
             <option value="0">0 - Not Retraining</option>
@@ -57,7 +57,11 @@
             <option value="2">2 - Quantity Trigger</option>
             <option value="3">3 - Performance Trigger</option>
         </select><br><br>
-        -->
+        <label for="quantity_factor">Enter Quantity Factor (%):</label>
+        <input type="number" name="quantity_factor" id="quantity_factor" min="0" max="100" step="0.01" placeholder="Enter percentage" required><br><br>
+    -->
+        
+        <!-- Submit Button -->
         <input type="submit" value="Upload and Process">
     </form>
 </body>
