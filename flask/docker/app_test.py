@@ -529,14 +529,12 @@ def get_number_samples(file_path):
         print(f"Error reading the file: {e}")
         return None
 
-import os
-
-def save_float_to_tempfile(float_value, dir_name, file_name):
+def save_int_to_tempfile(int_value, dir_name, file_name):
     """
-    Saves a float value to a specified directory and file name.
+    Saves a int value to a specified directory and file name.
 
     Args:
-        float_value (float): The float value to save.
+        int_value (int): The int value to save.
         dir_name (str): The name of the directory to save the file in.
         file_name (str): The name of the file.
     
@@ -548,20 +546,20 @@ def save_float_to_tempfile(float_value, dir_name, file_name):
     temp_file_path = os.path.join(dir_name, file_name)
     
     with open(temp_file_path, 'w') as temp_file:
-        # Convert the float to a string, then write to file
-        temp_file.write(str(float_value))
+        # Convert the int to a string, then write to file
+        temp_file.write(str(int_value))
     
     return temp_file_path
 
-def read_float_from_tempfile(temp_file_path):
+def read_int_from_tempfile(temp_file_path):
     """
-    Reads a float value from a specified file. Prints errors and returns 0.0 if the file does not exist or is blank.
+    Reads a int value from a specified file. Prints errors and returns 0.0 if the file does not exist or is blank.
 
     Args:
         temp_file_path (str): The path to the file.
 
     Returns:
-        float: The float value read from the file, or 0.0 if the file does not exist, is blank, or an error occurs.
+        int: The int value read from the file, or 0.0 if the file does not exist, is blank, or an error occurs.
     """
     try:
         if not os.path.exists(temp_file_path):
@@ -575,22 +573,32 @@ def read_float_from_tempfile(temp_file_path):
             print(f"Error: File is blank: {temp_file_path}")
             return 0.0
         
-        return float(content)  # Convert the read content to a float
+        return int(content)  # Convert the read content to a int
     
     except (ValueError, IOError) as e:
         print(f"Error: {e}")
         return 0.0  # Return 0.0 if there is an error in reading or conversion
 
 def get_number_samples_since_last_run():
-    n_samples_since_last_run = read_float_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN))
+    n_samples_since_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN))
     return n_samples_since_last_run
 
 def get_number_samples_in_last_run():
-    n_samples_in_last_run = read_float_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN))
+    n_samples_in_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN))
     return n_samples_in_last_run
 
-def reset_number_samples_since_last_run():
-    return 
+# def reset_number_samples_since_last_run():
+#     save_int_to_tempfile(0.0, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+
+# def increment_number_samples_since_last_run(new_quantity):
+#     save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+
+# reset and increment in one funtion update
+def update_number_samples_since_last_run(new_quantity):
+    save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+
+def update_number_samples_in_last_run(new_quantity):
+    save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
 
 # Routes
 
@@ -617,6 +625,10 @@ def init():
 
         # Download the file and save it as the target CSV file
         download_file(config["FILE_URL"], target_csv_path)
+
+        # Save the dataset's size for trigger type 3 (quantity type)
+        new_quantity = get_number_samples(target_csv_path)
+        update_number_samples_in_last_run(new_quantity)
 
         # Initialize DVC and Git repositories
         repo = initialize_dvc_and_repo(config["CLONED_DIR"])
@@ -683,7 +695,7 @@ def append_csv():
             return jsonify({'error': 'Quantity factor not provided'}), 400
 
         try:
-            quantity_factor = float(quantity_factor)  # Convert to float
+            quantity_factor = float(quantity_factor)/100.0  # Convert to float and percentage
         except ValueError:
             return jsonify({'error': 'Invalid quantity factor. Must be a number.'}), 400
 
@@ -702,11 +714,11 @@ def append_csv():
         # Perform a DVC pull to ensure local data is up-to-date with the remote repository
         perform_dvc_pull(config["CLONED_DIR"])
 
-        # Get the "size" of the previous data to compare later if the trigger is type 3 (quantity)
-        previous_quantity = get_number_samples_in_last_run()
-        
-        # Get size of the new data to compare later if the trigger is type 3 (quantity)
+        # Get size of the new data and add the size of the previous new data (if the quantity factor condition was not achieved)
         new_quantity = get_number_samples(source_csv_path) + get_number_samples_since_last_run()
+
+        # Get the size of the dataset when the last run was done, this way, we can compare the dataset before new data came
+        previous_quantity = get_number_samples_in_last_run()
 
         # Append data from the source CSV file to the target CSV file
         append_csv_data(source_csv_path, target_csv_path)
@@ -725,6 +737,35 @@ def append_csv():
         
         # Commit changes to Git and push to GitHub for the updated .dvc file
         commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
+
+        # default is trigger_type == '0', not retraining
+        exec_pipe = False
+        flash_msg = "Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository"
+        job_name = "Not retraining trigger job"
+
+        # Determine the job name based on the trigger type
+        if trigger_type == '1':
+            job_name = "Always retraining trigger job"
+            flash_msg = f'{flash_msg}, and triggered pipeline run.'
+            exec_pipe = True
+        elif trigger_type == '2':
+            job_name = "Quantity trigger job"
+            if previous_quantity * quantity_factor < new_quantity:
+                flash_msg = f'{flash_msg}, and triggered pipeline run.'
+                exec_pipe = True
+                # reset the value of number of samples since last run and update the value of samples in last run because a new run was triggered
+                reset_value = 0.0
+                update_number_samples_since_last_run(reset_value)
+                new_dataset_size = previous_quantity + new_quantity
+                update_number_samples_in_last_run(new_dataset_size)
+            else:
+                flash_msg = f'{flash_msg}. Pipeline not triggered, quantity factor condition not met'
+                update_number_samples_since_last_run(new_quantity)
+        elif trigger_type == '3':
+            job_name = "Performance trigger job"
+        else:
+            flash_msg = f'Trigger type {trigger_type} not defined'
+            job_name = flash_msg
 
         # Parameters for the pipeline execution
         pipeline_params = {
@@ -748,32 +789,9 @@ def append_csv():
             'bucket_name': config["BUCKET_NAME"],
             'object_name': config["OBJECT_NAME"],
             'svc_acc': config["SVC_ACC"],
-            'trigger_type': trigger_type  # Include the trigger type in the pipeline parameters
+            'trigger_type': trigger_type,  # Include the trigger type in the pipeline parameters
+            'first_run': False
         }
-
-        # default is trigger_type == '0', not retraining
-        exec_pipe = False
-        flash_msg = "Successfully appended data from the uploaded CSV file to the target CSV file, added the file to DVC, pushed changes to the remote repository"
-        job_name = "Not retraining trigger job"
-
-        # Determine the job name based on the trigger type
-        if trigger_type == '1':
-            job_name = "Always retraining trigger job"
-            flash_msg = f'{flash_msg}, and triggered pipeline run.'
-            exec_pipe = True
-        elif trigger_type == '2':
-            job_name = "Quantity trigger job"
-            if previous_quantity * quantity_factor < new_quantity:
-                flash_msg = f'{flash_msg}, and triggered pipeline run.'
-                exec_pipe = True
-                reset_number_samples_since_last_run()
-            else:
-                flash_msg = f'{flash_msg}. Pipeline triggerand triggered pipeline run.'
-        elif trigger_type == '3':
-            job_name = "Performance trigger job"
-        else:
-            flash_msg = f'Trigger type {trigger_type} not defined'
-            job_name = flash_msg
 
         if exec_pipe:
             # Execute the pipeline
