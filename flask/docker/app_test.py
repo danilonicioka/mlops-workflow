@@ -93,10 +93,10 @@ TRIGGER_TYPE = '0'
 QUANTITY_FACTOR = 0.1
 
 TEMP_DIR = "tmp"
-TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN = "n_samples_since_last_run"
-TEMP_FILE_N_SAMPLES_IN_LAST_RUN = "n_samples_in_last_run"
+TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN = "n_samples_since_last_run.txt"
+TEMP_FILE_N_SAMPLES_IN_LAST_RUN = "n_samples_in_last_run.txt"
 PERFORMANCE_FACTOR = 5.0
-TEMP_FILE_ACC_IN_LAST_RUN = "accuracy_in_last_run"
+TEMP_FILE_ACC_IN_LAST_RUN = "accuracy_in_last_run.txt"
 LAST_ACC_OBJECT_NAME = "accuracy-score/last_acc.txt"
 
 ####### Class to access kubeflow from outside the cluster
