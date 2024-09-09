@@ -24,39 +24,67 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration variables
-config = {
-    "REPO_URL": os.environ.get('REPO_URL', 'https://github.com/danilonicioka/mlops-workflow.git'),
-    "CLONED_DIR": os.environ.get('CLONED_DIR', 'mlops-workflow'),
-    "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
-    "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
-    "DVC_FILE_NAME": os.environ.get('DVC_FILE_NAME', 'dataset.csv'),
-    "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'tests'),
-    "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
-    "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
-    "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
-    "SECRET_KEY": os.environ.get('SECRET_KEY'),
-    "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
-    "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
-    "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
-    "MODEL_NAME": os.environ.get('MODEL_NAME', 'youtubegoes5g'),
-    "NAMESPACE": os.environ.get('NAMESPACE', 'kubeflow-user-example-com'),
-    "LR": float(os.environ.get('LR', 0.0001)),  # Learning rate, converted to float
-    "EPOCHS": int(os.environ.get('EPOCHS', 3500)),  # Number of epochs, converted to int
-    "PRINT_FREQUENCY": int(os.environ.get('PRINT_FREQUENCY', 500)),  # Print frequency, converted to int
-    "OBJECT_NAME": os.environ.get('OBJECT_NAME', 'model-files'),
-    "SVC_ACC": os.environ.get('SVC_ACC', 'sa-minio-kserve'),
-    "PIPELINE_ID": os.environ.get('PIPELINE_ID', '7451916e-eee8-4c14-ad5f-8dee5aa61e3b'),
-    "VERSION_ID": os.environ.get('VERSION_ID', '264564bb-0ada-4095-920f-ae3bb9d8ca2e'),
-    "KFP_HOST": os.environ.get('KFP_HOST', 'http://localhost:8080'),
-    "KFP_AUTH_TOKEN": os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
-    "DEX_USER": os.environ.get('DEX_USER'),
-    "DEX_PASS": os.environ.get('DEX_PASS'),
-    "SVC_ACC_KFP": os.environ.get('SVC_ACC', 'default-editor'),
-}
+# config = {
+#     "REPO_URL": os.environ.get('REPO_URL', 'https://github.com/danilonicioka/mlops-workflow.git'),
+#     "CLONED_DIR": os.environ.get('CLONED_DIR', 'mlops-workflow'),
+#     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
+#     "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
+#     "DVC_FILE_NAME": os.environ.get('DVC_FILE_NAME', 'dataset.csv'),
+#     "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'tests'),
+#     "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
+#     "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
+#     "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
+#     "SECRET_KEY": os.environ.get('SECRET_KEY'),
+#     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
+#     "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
+#     "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
+#     "MODEL_NAME": os.environ.get('MODEL_NAME', 'youtubegoes5g'),
+#     "NAMESPACE": os.environ.get('NAMESPACE', 'kubeflow-user-example-com'),
+#     "LR": float(os.environ.get('LR', 0.0001)),  # Learning rate, converted to float
+#     "EPOCHS": int(os.environ.get('EPOCHS', 3500)),  # Number of epochs, converted to int
+#     "PRINT_FREQUENCY": int(os.environ.get('PRINT_FREQUENCY', 500)),  # Print frequency, converted to int
+#     "OBJECT_NAME": os.environ.get('OBJECT_NAME', 'model-files'),
+#     "SVC_ACC": os.environ.get('SVC_ACC', 'sa-minio-kserve'),
+#     "PIPELINE_ID": os.environ.get('PIPELINE_ID', '7451916e-eee8-4c14-ad5f-8dee5aa61e3b'),
+#     "VERSION_ID": os.environ.get('VERSION_ID', '264564bb-0ada-4095-920f-ae3bb9d8ca2e'),
+#     "KFP_HOST": os.environ.get('KFP_HOST', 'http://localhost:8080'),
+#     "KFP_AUTH_TOKEN": os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
+#     "DEX_USER": os.environ.get('DEX_USER'),
+#     "DEX_PASS": os.environ.get('DEX_PASS'),
+#     "SVC_ACC_KFP": os.environ.get('SVC_ACC', 'default-editor'),
+# }
+
+REPO_URL = 'https://github.com/danilonicioka/mlops-workflow.git'
+CLONED_DIR = 'mlops-workflow'
+FILE_URL = 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'
+DVC_FILE_DIR = 'data/external'
+DVC_FILE_NAME = 'dataset.csv'
+BRANCH_NAME = 'tests'
+BUCKET_NAME = 'dvc-data'
+MINIO_URL = 'localhost:9000'
+ACCESS_KEY = os.environ.get('ACCESS_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+REMOTE_NAME = 'minio_remote'
+GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME'),
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN'),
+MODEL_NAME = 'youtubegoes5g'
+NAMESPACE = 'kubeflow-user-example-com'
+LR =  0.0001  # Learning rate, converted to float
+EPOCHS = 3500  # Number of epochs, converted to int
+PRINT_FREQUENCY = 500  # Print frequency, converted to int
+OBJECT_NAME = 'model-files'
+SVC_ACC = 'sa-minio-kserve'
+PIPELINE_ID = '7451916e-eee8-4c14-ad5f-8dee5aa61e3b'
+VERSION_ID = '264564bb-0ada-4095-920f-ae3bb9d8ca2e'
+KFP_HOST = 'http://localhost:8080'
+KFP_AUTH_TOKEN = os.environ.get('KFP_AUTH_TOKEN'),  # Token for Kubeflow Pipelines authentication
+DEX_USER = os.environ.get('DEX_USER')
+DEX_PASS = os.environ.get('DEX_PASS')
+SVC_ACC_KFP = 'default-editor'
 
 # File paths and commit messages constants
-DVC_FILE_PATH_EXT = os.path.join(f"{config['DVC_FILE_DIR']}/{config['DVC_FILE_NAME']}.dvc")
-GITIGNORE_PATH = os.path.join(config["DVC_FILE_DIR"], '.gitignore')
+DVC_FILE_PATH_EXT = os.path.join(f"{DVC_FILE_DIR}/{DVC_FILE_NAME}.dvc")
+GITIGNORE_PATH = os.path.join(DVC_FILE_DIR, '.gitignore')
 
 COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 COMMIT_MSG_APPEND = 'Update .dvc file'
@@ -627,16 +655,16 @@ def init():
     """Initialize the application by cloning the repository, downloading file, and setting up DVC and Git."""
     try:
         # Define the target CSV file path as dataset.csv in the DVC file directory
-        target_csv_path = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        target_csv_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
 
         # Clone the repository from the tests branch
         repo = clone_repository_with_token(
-            config["REPO_URL"], config["CLONED_DIR"], config["BRANCH_NAME"],
-            config["GITHUB_USERNAME"], config["GITHUB_TOKEN"]
+            REPO_URL, CLONED_DIR, BRANCH_NAME,
+            GITHUB_USERNAME, GITHUB_TOKEN
         )
 
         # Download the file and save it as the target CSV file
-        download_file(config["FILE_URL"], target_csv_path)
+        download_file(FILE_URL, target_csv_path)
 
         # Save the dataset's size for trigger type 2 (quantity type)
         new_quantity = get_number_samples(target_csv_path)
@@ -644,26 +672,26 @@ def init():
         update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
 
         # Initialize DVC and Git repositories
-        repo = initialize_dvc_and_repo(config["CLONED_DIR"])
+        repo = initialize_dvc_and_repo(CLONED_DIR)
 
         # Specify the relative path to the target CSV file
-        relative_target_csv_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        relative_target_csv_path = os.path.join(DVC_FILE_DIR, DVC_FILE_NAME)
         
         # Add the file to DVC using the relative path
-        add_file_to_dvc(config["CLONED_DIR"], relative_target_csv_path)
+        add_file_to_dvc(CLONED_DIR, relative_target_csv_path)
         
         # Commit changes to Git and push them to the 'tests' branch in GitHub using relative paths
         commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
 
         # Set up Minio client and create a bucket if needed
-        client = setup_minio_client(config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"], config["BUCKET_NAME"])
+        client = setup_minio_client(MINIO_URL, ACCESS_KEY, SECRET_KEY, BUCKET_NAME)
 
         # Configure Minio as the remote DVC repository
-        remote_url = f's3://{config["BUCKET_NAME"]}'
-        configure_dvc_remote(config["CLONED_DIR"], config["REMOTE_NAME"], remote_url, config["MINIO_URL"], config["ACCESS_KEY"], config["SECRET_KEY"])
+        remote_url = f's3://{BUCKET_NAME}'
+        configure_dvc_remote(CLONED_DIR, REMOTE_NAME, remote_url, MINIO_URL, ACCESS_KEY, SECRET_KEY)
 
         # Push data to remote DVC repository
-        push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
+        push_data_to_dvc(CLONED_DIR, REMOTE_NAME)
 
         # Flash a success message and redirect to the home page
         flash('Successfully initialized the app, downloaded file as the target CSV file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.')
@@ -677,7 +705,7 @@ def init():
 @app.route('/append_csv', methods=['GET', 'POST'])
 @handle_dvc_errors
 def append_csv():
-    """Append data from the source CSV file to the target CSV file named as config["DVC_FILE_NAME"], then update DVC and Git."""
+    """Append data from the source CSV file to the target CSV file named as DVC_FILE_NAME, then update DVC and Git."""
     if request.method == 'GET':
         # Render the form using the submit_file.html template
         return render_template('submit_file.html')
@@ -725,17 +753,17 @@ def append_csv():
         logger.info(f"Trigger type received: {trigger_type}, Quantity factor: {quantity_factor}, Performance factor: {performance_factor}")
         
         # Define the path where the uploaded file will be saved
-        source_csv_path = os.path.join(config["CLONED_DIR"], 'temp_source.csv')
+        source_csv_path = os.path.join(CLONED_DIR, 'temp_source.csv')
         
         # Save the uploaded file to a temporary location
         uploaded_file.save(source_csv_path)
         logger.info(f"Uploaded CSV file saved to {source_csv_path}")
         
-        # Define the target CSV file path as config["DVC_FILE_NAME"] in the DVC file directory
-        target_csv_path = os.path.join(config["CLONED_DIR"], config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        # Define the target CSV file path as DVC_FILE_NAME in the DVC file directory
+        target_csv_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
         
         # Perform a DVC pull to ensure local data is up-to-date with the remote repository
-        perform_dvc_pull(config["CLONED_DIR"])
+        perform_dvc_pull(CLONED_DIR)
 
         # Get size of the new data and add the size of the accumulated previous new data (if the quantity factor condition was not achieved)
         new_quantity = get_number_samples(source_csv_path) + get_number_samples_from_file(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
@@ -747,16 +775,16 @@ def append_csv():
         append_csv_data(source_csv_path, target_csv_path)
         
         # Open the existing Git repository
-        repo = Repo(config["CLONED_DIR"])
+        repo = Repo(CLONED_DIR)
 
-        # Specify the relative path to config["DVC_FILE_NAME"]
-        relative_target_csv_path = os.path.join(config["DVC_FILE_DIR"], config["DVC_FILE_NAME"])
+        # Specify the relative path to DVC_FILE_NAME
+        relative_target_csv_path = os.path.join(DVC_FILE_DIR, DVC_FILE_NAME)
         
         # Add the appended file to DVC using the relative path
-        add_file_to_dvc(config["CLONED_DIR"], relative_target_csv_path)
+        add_file_to_dvc(CLONED_DIR, relative_target_csv_path)
         
         # Push changes to the remote DVC repository
-        push_data_to_dvc(config["CLONED_DIR"], config["REMOTE_NAME"])
+        push_data_to_dvc(CLONED_DIR, REMOTE_NAME)
         
         # Commit changes to Git and push to GitHub for the updated .dvc file
         commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
@@ -793,26 +821,26 @@ def append_csv():
 
         # Parameters for the pipeline execution
         pipeline_params = {
-            'repo_url': config["REPO_URL"],
-            'cloned_dir': config["CLONED_DIR"],
-            'branch_name': config["BRANCH_NAME"],
-            'github_username': config["GITHUB_USERNAME"],
-            'github_token': config["GITHUB_TOKEN"],
-            'remote_name': config["REMOTE_NAME"],
-            'remote_url': f's3://{config["BUCKET_NAME"]}',
-            'minio_url': config["MINIO_URL"],
-            'access_key': config["ACCESS_KEY"],
-            'secret_key': config["SECRET_KEY"],
-            'dvc_file_dir': config["DVC_FILE_DIR"],
-            'dvc_file_name': config["DVC_FILE_NAME"],
-            'model_name': config["MODEL_NAME"],
-            'namespace': config["NAMESPACE"],
-            'lr': config["LR"],
-            'epochs': config["EPOCHS"],
-            'print_frequency': config["PRINT_FREQUENCY"],
-            'bucket_name': config["BUCKET_NAME"],
-            'object_name': config["OBJECT_NAME"],
-            'svc_acc': config["SVC_ACC"],
+            'repo_url': REPO_URL,
+            'cloned_dir': CLONED_DIR,
+            'branch_name': BRANCH_NAME,
+            'github_username': GITHUB_USERNAME,
+            'github_token': GITHUB_TOKEN,
+            'remote_name': REMOTE_NAME,
+            'remote_url': f's3://{BUCKET_NAME}',
+            'minio_url': MINIO_URL,
+            'access_key': ACCESS_KEY,
+            'secret_key': SECRET_KEY,
+            'dvc_file_dir': DVC_FILE_DIR,
+            'dvc_file_name': DVC_FILE_NAME,
+            'model_name': MODEL_NAME,
+            'namespace': NAMESPACE,
+            'lr': LR,
+            'epochs': EPOCHS,
+            'print_frequency': PRINT_FREQUENCY,
+            'bucket_name': BUCKET_NAME,
+            'object_name': OBJECT_NAME,
+            'svc_acc': SVC_ACC,
             'trigger_type': trigger_type,  # Include the trigger type in the pipeline parameters
             'first_run': False,
             'performance_factor': performance_factor,
@@ -824,15 +852,15 @@ def append_csv():
         if exec_pipe:
             # Execute the pipeline
             execute_pipeline_run(
-                kfp_host=config['KFP_HOST'],
-                dex_user=config['DEX_USER'],
-                dex_pass=config['DEX_PASS'],
-                namespace=config['NAMESPACE'],
+                kfp_host=KFP_HOST,
+                dex_user=DEX_USER,
+                dex_pass=DEX_PASS,
+                namespace=NAMESPACE,
                 job_name=job_name,
                 params=pipeline_params,
-                pipeline_id=config['PIPELINE_ID'],
-                version_id=config['VERSION_ID'],
-                svc_acc=config['SVC_ACC_KFP']
+                pipeline_id=PIPELINE_ID,
+                version_id=VERSION_ID,
+                svc_acc=SVC_ACC_KFP
             )
 
         # Flash a success message
