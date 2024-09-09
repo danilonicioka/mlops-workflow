@@ -795,29 +795,30 @@ def append_csv():
         job_name = "Not retraining trigger job"
 
         # Determine the job name based on the trigger type
-        if trigger_type == '1':
-            job_name = "Always retraining trigger job"
-            flash_msg = f'{flash_msg}, and triggered pipeline run.'
-            exec_pipe = True
-        elif trigger_type == '2':
-            job_name = "Quantity trigger job"
-            if previous_quantity * quantity_factor < new_quantity:
+        if trigger_type != '0': # if it is 0, skip this
+            if trigger_type == '1':
+                job_name = "Always retraining trigger job"
                 flash_msg = f'{flash_msg}, and triggered pipeline run.'
                 exec_pipe = True
-                # reset the value of number of samples since last run and update the value of samples in last run because a new run was triggered
-                reset_value = 0
-                update_number_samples(reset_value, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
-                new_dataset_size = previous_quantity + new_quantity
-                update_number_samples(new_dataset_size, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
+            elif trigger_type == '2':
+                job_name = "Quantity trigger job"
+                if previous_quantity * quantity_factor < new_quantity:
+                    flash_msg = f'{flash_msg}, and triggered pipeline run.'
+                    exec_pipe = True
+                    # reset the value of number of samples since last run and update the value of samples in last run because a new run was triggered
+                    reset_value = 0
+                    update_number_samples(reset_value, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+                    new_dataset_size = previous_quantity + new_quantity
+                    update_number_samples(new_dataset_size, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
+                else:
+                    flash_msg = f'{flash_msg}. Pipeline not triggered, quantity factor condition not met'
+                    # pipeline not triggered, so the new data need to be saved with the previous accumulated value
+                    update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+            elif trigger_type == '3':
+                job_name = "Performance trigger job"
             else:
-                flash_msg = f'{flash_msg}. Pipeline not triggered, quantity factor condition not met'
-                # pipeline not triggered, so the new data need to be saved with the previous accumulated value
-                update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
-        elif trigger_type == '3':
-            job_name = "Performance trigger job"
-        else:
-            flash_msg = f'Trigger type {trigger_type} not defined'
-            job_name = flash_msg
+                flash_msg = f'Trigger type {trigger_type} not defined'
+                job_name = flash_msg
 
         # Parameters for the pipeline execution
         pipeline_params = {
