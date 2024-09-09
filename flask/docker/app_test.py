@@ -67,6 +67,9 @@ QUANTITY_FACTOR = 0.1
 TEMP_DIR = "tmp"
 TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN = "n_samples_since_last_run"
 TEMP_FILE_N_SAMPLES_IN_LAST_RUN = "n_samples_in_last_run"
+PERFORMANCE_FACTOR = 5.0
+TEMP_FILE_ACC_IN_LAST_RUN = "accuracy_in_last_run"
+LAST_ACC_OBJECT_NAME = "last_acc"
 
 ####### Class to access kubeflow from outside the cluster
 
@@ -579,13 +582,18 @@ def read_int_from_tempfile(temp_file_path):
         print(f"Error: {e}")
         return 0.0  # Return 0.0 if there is an error in reading or conversion
 
-def get_number_samples_since_last_run():
-    n_samples_since_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN))
-    return n_samples_since_last_run
+# def get_number_samples_since_last_run():
+#     n_samples_since_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN))
+#     return n_samples_since_last_run
 
-def get_number_samples_in_last_run():
-    n_samples_in_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN))
-    return n_samples_in_last_run
+# def get_number_samples_in_last_run():
+#     n_samples_in_last_run = read_int_from_tempfile(os.path.join(TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN))
+#     return n_samples_in_last_run
+
+# get_number_samples_since_last_run and get_number_samples_in_last_run in one function
+def get_number_samples_from_file(dir, file):
+    n_samples = read_int_from_tempfile(os.path.join(dir, file))
+    return n_samples
 
 # def reset_number_samples_since_last_run():
 #     save_int_to_tempfile(0.0, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
@@ -594,11 +602,15 @@ def get_number_samples_in_last_run():
 #     save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
 
 # reset and increment in one funtion update
-def update_number_samples_since_last_run(new_quantity):
-    save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
+# def update_number_samples_since_last_run(new_quantity):
+#     save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
 
-def update_number_samples_in_last_run(new_quantity):
-    save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
+# def update_number_samples_in_last_run(new_quantity):
+#     save_int_to_tempfile(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
+
+# update_number_samples_since_last_run and update_number_samples_in_last_run in one function
+def update_number_samples(new_quantity, dir, file):
+    save_int_to_tempfile(new_quantity, dir, file)
 
 # Routes
 
@@ -626,9 +638,10 @@ def init():
         # Download the file and save it as the target CSV file
         download_file(config["FILE_URL"], target_csv_path)
 
-        # Save the dataset's size for trigger type 3 (quantity type)
+        # Save the dataset's size for trigger type 2 (quantity type)
         new_quantity = get_number_samples(target_csv_path)
-        update_number_samples_in_last_run(new_quantity)
+        # save number samples in last run to access later if needed
+        update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
 
         # Initialize DVC and Git repositories
         repo = initialize_dvc_and_repo(config["CLONED_DIR"])
@@ -685,21 +698,31 @@ def append_csv():
         trigger_type = request.form.get('trigger_type')
         if not trigger_type:
             trigger_type = TRIGGER_TYPE
-            return jsonify({'error': 'Trigger type not provided'}), 400
-
-        logger.info(f"Trigger type received: {trigger_type}")
+            #return jsonify({'error': 'Trigger type not provided'}), 400
 
         # Retrieve and convert quantity factor to float
         quantity_factor = request.form.get('quantity_factor')
         if not quantity_factor:
-            return jsonify({'error': 'Quantity factor not provided'}), 400
+            quantity_factor = QUANTITY_FACTOR
+            #return jsonify({'error': 'Quantity factor not provided'}), 400
 
         try:
             quantity_factor = float(quantity_factor)/100.0  # Convert to float and percentage
         except ValueError:
             return jsonify({'error': 'Invalid quantity factor. Must be a number.'}), 400
+        
+        # Retrieve and convert quantity factor to float
+        performance_factor = request.form.get('performance_factor')
+        if not performance_factor:
+            performance_factor = PERFORMANCE_FACTOR
+            #return jsonify({'error': 'Performance factor not provided'}), 400
 
-        logger.info(f"Trigger type received: {trigger_type}, Quantity factor: {quantity_factor}")
+        try:
+            performance_factor = float(performance_factor)  # Convert to float
+        except ValueError:
+            return jsonify({'error': 'Invalid performance factor. Must be a number.'}), 400
+
+        logger.info(f"Trigger type received: {trigger_type}, Quantity factor: {quantity_factor}, Performance factor: {performance_factor}")
         
         # Define the path where the uploaded file will be saved
         source_csv_path = os.path.join(config["CLONED_DIR"], 'temp_source.csv')
@@ -714,11 +737,11 @@ def append_csv():
         # Perform a DVC pull to ensure local data is up-to-date with the remote repository
         perform_dvc_pull(config["CLONED_DIR"])
 
-        # Get size of the new data and add the size of the previous new data (if the quantity factor condition was not achieved)
-        new_quantity = get_number_samples(source_csv_path) + get_number_samples_since_last_run()
+        # Get size of the new data and add the size of the accumulated previous new data (if the quantity factor condition was not achieved)
+        new_quantity = get_number_samples(source_csv_path) + get_number_samples_from_file(TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
 
         # Get the size of the dataset when the last run was done, this way, we can compare the dataset before new data came
-        previous_quantity = get_number_samples_in_last_run()
+        previous_quantity = get_number_samples_from_file(TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
 
         # Append data from the source CSV file to the target CSV file
         append_csv_data(source_csv_path, target_csv_path)
@@ -754,13 +777,14 @@ def append_csv():
                 flash_msg = f'{flash_msg}, and triggered pipeline run.'
                 exec_pipe = True
                 # reset the value of number of samples since last run and update the value of samples in last run because a new run was triggered
-                reset_value = 0.0
-                update_number_samples_since_last_run(reset_value)
+                reset_value = 0
+                update_number_samples(reset_value, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
                 new_dataset_size = previous_quantity + new_quantity
-                update_number_samples_in_last_run(new_dataset_size)
+                update_number_samples(new_dataset_size, TEMP_DIR, TEMP_FILE_N_SAMPLES_IN_LAST_RUN)
             else:
                 flash_msg = f'{flash_msg}. Pipeline not triggered, quantity factor condition not met'
-                update_number_samples_since_last_run(new_quantity)
+                # pipeline not triggered, so the new data need to be saved with the previous accumulated value
+                update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
         elif trigger_type == '3':
             job_name = "Performance trigger job"
         else:
@@ -790,7 +814,11 @@ def append_csv():
             'object_name': config["OBJECT_NAME"],
             'svc_acc': config["SVC_ACC"],
             'trigger_type': trigger_type,  # Include the trigger type in the pipeline parameters
-            'first_run': False
+            'first_run': False,
+            'performance_factor': performance_factor,
+            'last_accuracy_object_name': LAST_ACC_OBJECT_NAME,
+            'tmp_dir': TEMP_DIR,
+            'tmp_file_last_acc': TEMP_FILE_ACC_IN_LAST_RUN
         }
 
         if exec_pipe:
