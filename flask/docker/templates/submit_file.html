@@ -49,7 +49,7 @@
         <input type="file" name="source_csv" id="source_csv" accept=".csv" required><br><br>
 
         <!-- Trigger Type Dropdown and Quantity Factor Input -->
-    <!--
+    
         <label for="trigger_type">Select Trigger Type:</label>
         <select name="trigger_type" id="trigger_type" required>
             <option value="0">0 - Not Retraining</option>
@@ -57,9 +57,13 @@
             <option value="2">2 - Quantity Trigger</option>
             <option value="3">3 - Performance Trigger</option>
         </select><br><br>
+
         <label for="quantity_factor">Enter Quantity Factor (%):</label>
         <input type="number" name="quantity_factor" id="quantity_factor" min="0" max="100" step="0.01" placeholder="Enter percentage" required><br><br>
-    -->
+        
+        <label for="performance_factor">Enter Performance Factor (%):</label>
+        <input type="number" name="performance_factor" id="performance_factor" min="0" max="100" step="0.01" placeholder="Enter percentage" required><br><br>
+    
         
         <!-- Submit Button -->
         <input type="submit" value="Upload and Process">
