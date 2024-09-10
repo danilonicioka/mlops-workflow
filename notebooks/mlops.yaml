@@ -8,19 +8,24 @@
 #    dvc_file_dir: str
 #    dvc_file_name: str
 #    epochs: int
+#    first_run: bool
 #    github_token: str
 #    github_username: str
+#    last_accuracy_object_name: str
 #    lr: float
 #    minio_url: str
 #    model_name: str
+#    model_object_name: str
 #    namespace: str
-#    object_name: str
+#    performance_factor: float
 #    print_frequency: int
 #    remote_name: str
 #    remote_url: str
 #    repo_url: str
 #    secret_key: str
 #    svc_acc: str
+#    tmp_dir: str
+#    tmp_file_last_acc: str
 #    trigger_type: str
 # Outputs:
 #    model-training-classification_metrics: system.ClassificationMetrics
@@ -95,6 +100,21 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-model-serving:
+    executorLabel: exec-model-serving
+    inputDefinitions:
+      artifacts:
+        model_uri:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        model_name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+        svc_acc:
+          parameterType: STRING
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -122,15 +142,23 @@ components:
           parameterType: STRING
         epochs:
           parameterType: NUMBER_INTEGER
+        last_accuracy_object_name:
+          parameterType: STRING
         lr:
           parameterType: NUMBER_DOUBLE
         minio_url:
           parameterType: STRING
-        object_name:
+        model_object_name:
           parameterType: STRING
+        performance_factor:
+          parameterType: NUMBER_DOUBLE
         print_frequency:
           parameterType: NUMBER_INTEGER
         secret_key:
+          parameterType: STRING
+        tmp_dir:
+          parameterType: STRING
+        tmp_file_last_acc:
           parameterType: STRING
         trigger_type:
           parameterType: STRING
@@ -305,6 +333,57 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-model-serving:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_serving
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
+          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_serving(\n    model_uri: Input[Artifact],\n    model_name:\
+          \ str,\n    namespace: str,\n    svc_acc: str\n):\n    # Create kserve instance\n\
+          \    from kubernetes import client \n    from kserve import KServeClient,\
+          \ constants, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
+          \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
+          \n    #TFServing wants this type of structure ./models/1/model\n    # the\
+          \ number represent the model version\n    # in this example we use only\
+          \ 1 version\n\n    #Inference server config\n    now = datetime.now()\n\
+          \    kserve_version='v1beta1'\n    api_version = constants.KSERVE_GROUP\
+          \ + '/' + kserve_version\n\n    with open(model_uri.path) as f:\n      \
+          \  uri = f.read()\n    print(uri)\n\n    isvc = V1beta1InferenceService(api_version=api_version,\n\
+          \                                   kind=constants.KSERVE_KIND,\n      \
+          \                             metadata=client.V1ObjectMeta(\n          \
+          \                             name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
+          \                                   spec=V1beta1InferenceServiceSpec(\n\
+          \                                   predictor=V1beta1PredictorSpec(\n  \
+          \                                     service_account_name=svc_acc,\n  \
+          \                                     pytorch=(V1beta1TorchServeSpec(\n\
+          \                                           storage_uri=uri))))\n    )\n\
+          \n    KServe = KServeClient()\n\n    #replace old inference service with\
+          \ a new one\n    try:\n        KServe.delete(name=model_name, namespace=namespace)\n\
+          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
+          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
+        image: python:3.11.9
     exec-model-training:
       container:
         args:
@@ -336,31 +415,83 @@ deploymentSpec:
           \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
-          \ Output[Model],\n    model_uri: Output[Artifact],    \n    lr: float,\n\
+          \ Output[Model],\n    model_uri: Output[Artifact],   \n    lr: float,\n\
           \    epochs: int,\n    print_frequency: int,\n    minio_url: str,\n    access_key:\
-          \ str,\n    secret_key: str,\n    bucket_name: str,\n    object_name: str,\n\
-          \    trigger_type: str\n    ):\n    import os\n    import torch\n    from\
-          \ torch import nn\n    from sklearn.metrics import accuracy_score, confusion_matrix,\
-          \ classification_report, precision_score, recall_score, f1_score\n    from\
-          \ minio import Minio\n\n    # Build model with non-linear activation function\n\
-          \    class InterruptionModel(nn.Module):\n        def __init__(self):\n\
-          \            super().__init__()\n            self.layer_1 = nn.Linear(in_features=29,\
-          \ out_features=200)\n            self.layer_2 = nn.Linear(in_features=200,\
-          \ out_features=100)\n            self.layer_3 = nn.Linear(in_features=100,\
-          \ out_features=1)\n            self.relu = nn.ReLU() # <- add in ReLU activation\
-          \ function\n            # Can also put sigmoid in the model\n          \
-          \  # This would mean you don't need to use it on the predictions\n     \
-          \       # self.sigmoid = nn.Sigmoid()\n\n        def forward(self, x):\n\
-          \            # Intersperse the ReLU activation function between layers\n\
-          \            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
-          \n    device = \"cuda\" if torch.cuda.is_available() else \"cpu\"\n    model\
-          \ = InterruptionModel().to(device)\n\n    # Setup loss and optimizer\n \
-          \   loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
-          \ lr=lr)\n\n    def accuracy_fn(y_true, y_pred):\n        correct = torch.eq(y_true,\
-          \ y_pred).sum().item() # torch.eq() calculates where two tensors are equal\n\
-          \        acc = (correct / len(y_pred)) * 100\n        return acc\n\n   \
-          \ # Fit the model\n    torch.manual_seed(42)\n    epochs = epochs\n\n  \
-          \  # Put all data on target device\n    X_train = torch.load(X_train_artifact.path)\n\
+          \ str,\n    secret_key: str,\n    bucket_name: str,\n    model_object_name:\
+          \ str,\n    trigger_type: str,\n    performance_factor: float,\n    last_accuracy_object_name:\
+          \ str,\n    tmp_dir: str,\n    tmp_file_last_acc: str\n    ):\n    import\
+          \ os\n    import torch\n    from torch import nn\n    from sklearn.metrics\
+          \ import accuracy_score, confusion_matrix, precision_score, recall_score,\
+          \ f1_score\n    from minio import Minio\n\n    # Build model with non-linear\
+          \ activation function\n    class InterruptionModel(nn.Module):\n       \
+          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
+          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
+          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
+          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
+          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
+          \ put sigmoid in the model\n            # This would mean you don't need\
+          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
+          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
+          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \n    # Helper functions\n    def accuracy_fn(y_true, y_pred):\n       \
+          \ correct = torch.eq(y_true, y_pred).sum().item() # torch.eq() calculates\
+          \ where two tensors are equal\n        acc = (correct / len(y_pred)) * 100\n\
+          \        return acc\n\n    def minio_setup(minio_url, access_key, secret_key):\n\
+          \        # Initialize Minio client with just the base URL (without path)\n\
+          \        client = Minio(\n            minio_url,  # Ensure minio_url does\
+          \ not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \            access_key=access_key,\n            secret_key=secret_key,\n\
+          \            secure=False  # Minio is using HTTP on localhost:9000\n   \
+          \     )\n        return client\n\n    def upload_file(client, bucket_name,\
+          \ object_name, filepath):\n        # Create the bucket if it does not exist\n\
+          \        if not client.bucket_exists(bucket_name):\n            client.make_bucket(bucket_name)\n\
+          \            create_bucket_result = f\"Successfully created bucket: {bucket_name}\"\
+          \n        else:\n            create_bucket_result = f\"Bucket {bucket_name}\
+          \ already exists\"\n\n        try:\n            # Upload the file to the\
+          \ specified path in the bucket\n            client.fput_object(bucket_name,\
+          \ object_name, filepath)\n            return (f'Successfully uploaded {filepath}\
+          \ to {bucket_name}/{object_name}')\n\n        except Exception as e:\n \
+          \           # Log and raise any upload errors\n            raise Exception(f'Failed\
+          \ to upload model to Minio: {e}')\n\n    def read_from_minio(client, bucket_name,\
+          \ object_name):\n        \"\"\"\n        Function to read a file from a\
+          \ MinIO bucket and convert its single content to a float.\n        If the\
+          \ file is not found or is empty, it returns 0.0.\n\n        Args:\n    \
+          \        client: minio client\n            bucket_name (str): The name of\
+          \ the bucket in MinIO.\n            object_name (str): The name of the object\
+          \ (file) in the bucket.\n\n        Returns:\n            float: The float\
+          \ value converted from the file content, or 0.0 if the file is not found\
+          \ or empty.\n        \"\"\"\n        try:\n            # Get the file from\
+          \ the MinIO bucket\n            response = client.get_object(bucket_name,\
+          \ object_name)\n\n            # Read the file content into a buffer\n  \
+          \          file_data = response.read()\n\n            # Decode file content\
+          \ and strip whitespace\n            content = file_data.decode('utf-8').strip()\n\
+          \n            # If the content is empty, return 0.0\n            if not\
+          \ content:\n                print(f\"File {object_name} is empty.\")\n \
+          \               return 0.0\n\n            # Convert the content to a float\n\
+          \            float_value = float(content)\n            return float_value\n\
+          \n        except Exception as e:\n            # Handle file not found or\
+          \ any other errors\n            print(f\"Error occurred: {e}\")\n      \
+          \      return 0.0\n\n    def save_float_to_tempfile(float_value, dir_name,\
+          \ file_name):\n        \"\"\"\n        Saves a float value to a specified\
+          \ directory and file name.\n\n        Args:\n            float_value (float):\
+          \ The float value to save.\n            dir_name (str): The name of the\
+          \ directory to save the file in.\n            file_name (str): The name\
+          \ of the file.\n\n        Returns:\n            str: The path to the file.\n\
+          \        \"\"\"\n        # Ensure the directory exists\n        os.makedirs(dir_name,\
+          \ exist_ok=True)\n        temp_file_path = os.path.join(dir_name, file_name)\n\
+          \n        with open(temp_file_path, 'w') as temp_file:\n            # Convert\
+          \ the float to a string, then write to file\n            temp_file.write(str(float_value))\n\
+          \n        return temp_file_path\n\n    def get_accuracy_in_last_run(client,\
+          \ bucket_name, object_name):\n        accuracy_in_last_run = read_from_minio(client,\
+          \ bucket_name, object_name)\n        return accuracy_in_last_run\n\n   \
+          \ def update_accuracy_in_last_run(client, bucket_name, object_name, new_value,\
+          \ tmp_dir, tmp_file):\n        filepath = save_float_to_tempfile(new_value,\
+          \ tmp_dir, tmp_file)\n        upload_file(client, bucket_name, object_name,\
+          \ filepath)\n\n    device = \"cuda\" if torch.cuda.is_available() else \"\
+          cpu\"\n    model = InterruptionModel().to(device)\n\n    # Setup loss and\
+          \ optimizer\n    loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
+          \ lr=lr)\n\n    # Fit the model\n    torch.manual_seed(42)\n    epochs =\
+          \ epochs\n\n    # Put all data on target device\n    X_train = torch.load(X_train_artifact.path)\n\
           \    X_test = torch.load(X_test_artifact.path)\n    y_train = torch.load(y_train_artifact.path)\n\
           \    y_test = torch.load(y_test_artifact.path)\n    X_train, y_train = X_train.to(device),\
           \ y_train.to(device)\n    X_test, y_test = X_test.to(device), y_test.to(device)\n\
@@ -390,7 +521,8 @@ deploymentSpec:
           \        cmatrix = confusion_matrix(true_labels, predictions)\n        #print(\"\
           Confusion Matrix:\", cmatrix)\n\n        # Metrics\n        accuracy = accuracy_score(true_labels,\
           \ predictions)\n        metrics.log_metric(\"Accuracy\", accuracy)\n   \
-          \     #print('Accuracy: %f' % accuracy)\n\n        precision = precision_score(true_labels,\
+          \     #print('Accuracy: %f' % accuracy)\n\n        # test accuracy\n   \
+          \     print(type(accuracy))\n\n        precision = precision_score(true_labels,\
           \  predictions, average='weighted')\n        metrics.log_metric(\"Precision\"\
           , precision)\n        #print('Precision: %f' % precision)\n\n        recall\
           \ = recall_score(true_labels, predictions, average='weighted')\n       \
@@ -406,29 +538,20 @@ deploymentSpec:
           \        target_names = ['No-Stall', 'Stall']\n        classification_metrics.log_confusion_matrix(target_names,\
           \ cmatrix)\n\n        # Save model\n        model_path = \"/tmp/model.pt\"\
           \n        torch.save(model.state_dict(), model_path)\n        os.rename(model_path,\
-          \ model_trained_artifact.path)\n\n        def upload_model(minio_url, access_key,\
-          \ secret_key, bucket_name, object_name):\n            \"\"\"Create a Minio\
-          \ client and ensure the bucket exists.\"\"\"\n            # Initialize Minio\
-          \ client with just the base URL (without path)\n            client = Minio(\n\
-          \                minio_url,  # Ensure minio_url does not include a path,\
-          \ only the base URL (e.g., http://localhost:9000)\n                access_key=access_key,\n\
-          \                secret_key=secret_key,\n                secure=False  #\
-          \ Minio is using HTTP on localhost:9000\n            )\n\n            #\
-          \ Create the bucket if it does not exist\n            if not client.bucket_exists(bucket_name):\n\
-          \                client.make_bucket(bucket_name)\n                create_bucket_result\
-          \ = f\"Successfully created bucket: {bucket_name}\"\n            else:\n\
-          \                create_bucket_result = f\"Bucket {bucket_name} already\
-          \ exists\"\n\n            try:\n                # Upload the model file\
-          \ to the specified path in the bucket\n                client.fput_object(bucket_name,\
-          \ object_name, model_trained_artifact.path)\n                return (f'Successfully\
-          \ uploaded {model_trained_artifact.path} to {bucket_name}/{object_name}')\n\
-          \n            except Exception as e:\n                # Log and raise any\
-          \ upload errors\n                raise Exception(f'Failed to upload model\
-          \ to Minio: {e}')\n\n        if trigger_type == '1':\n            upload_model_result\
-          \ = upload_model(minio_url, access_key, secret_key, bucket_name, object_name)\n\
-          \n        # export model_uri just so that the model serving exec just after\
-          \ the training\n        with open(model_uri.path, 'w') as f:\n         \
-          \   f.write(f's3://{bucket_name}')\n\n"
+          \ model_trained_artifact.path)\n\n        # Setup minio client to upload\
+          \ and read files\n        client = minio_setup(minio_url, access_key, secret_key)\n\
+          \n        previous_accuracy = get_accuracy_in_last_run(client, bucket_name,\
+          \ last_accuracy_object_name)\n\n        print(accuracy-previous_accuracy)\n\
+          \n        if trigger_type == '1' or trigger_type == '2':\n            up_model\
+          \ = True\n        elif trigger_type == '3':\n            if accuracy - previous_accuracy\
+          \ > performance_factor:\n                up_model = True\n             \
+          \   update_accuracy_in_last_run(client, bucket_name, last_accuracy_object_name,\
+          \ accuracy, tmp_dir, tmp_file_last_acc)\n        else:\n            up_model\
+          \ = False\n\n        if up_model:\n            upload_model_result = upload_file(client,\
+          \ bucket_name, model_object_name, model_trained_artifact.path)\n\n     \
+          \   # export model_uri just so that the model serving exec just after the\
+          \ training\n        with open(model_uri.path, 'w') as f:\n            f.write(f's3://{bucket_name}')\n\
+          \n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
@@ -493,6 +616,28 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
+      model-serving:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-serving
+        dependentTasks:
+        - model-training
+        inputs:
+          artifacts:
+            model_uri:
+              taskOutputArtifact:
+                outputArtifactKey: model_uri
+                producerTask: model-training
+          parameters:
+            model_name:
+              componentInputParameter: model_name
+            namespace:
+              componentInputParameter: namespace
+            svc_acc:
+              componentInputParameter: svc_acc
+        taskInfo:
+          name: model-serving
       model-training:
         cachingOptions:
           enableCache: true
@@ -525,16 +670,24 @@ root:
               componentInputParameter: bucket_name
             epochs:
               componentInputParameter: epochs
+            last_accuracy_object_name:
+              componentInputParameter: last_accuracy_object_name
             lr:
               componentInputParameter: lr
             minio_url:
               componentInputParameter: minio_url
-            object_name:
-              componentInputParameter: object_name
+            model_object_name:
+              componentInputParameter: model_object_name
+            performance_factor:
+              componentInputParameter: performance_factor
             print_frequency:
               componentInputParameter: print_frequency
             secret_key:
               componentInputParameter: secret_key
+            tmp_dir:
+              componentInputParameter: tmp_dir
+            tmp_file_last_acc:
+              componentInputParameter: tmp_file_last_acc
             trigger_type:
               componentInputParameter: trigger_type
         taskInfo:
@@ -555,9 +708,13 @@ root:
         parameterType: STRING
       epochs:
         parameterType: NUMBER_INTEGER
+      first_run:
+        parameterType: BOOLEAN
       github_token:
         parameterType: STRING
       github_username:
+        parameterType: STRING
+      last_accuracy_object_name:
         parameterType: STRING
       lr:
         parameterType: NUMBER_DOUBLE
@@ -565,10 +722,12 @@ root:
         parameterType: STRING
       model_name:
         parameterType: STRING
+      model_object_name:
+        parameterType: STRING
       namespace:
         parameterType: STRING
-      object_name:
-        parameterType: STRING
+      performance_factor:
+        parameterType: NUMBER_DOUBLE
       print_frequency:
         parameterType: NUMBER_INTEGER
       remote_name:
@@ -580,6 +739,10 @@ root:
       secret_key:
         parameterType: STRING
       svc_acc:
+        parameterType: STRING
+      tmp_dir:
+        parameterType: STRING
+      tmp_file_last_acc:
         parameterType: STRING
       trigger_type:
         parameterType: STRING
