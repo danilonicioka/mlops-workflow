@@ -340,16 +340,11 @@ deploymentSpec:
           \ y, test_size=test_size, random_state=random_state)\n\n    X_train_path\
           \ = \"/tmp/X_train.pt\"\n    X_test_path = \"/tmp/X_test.pt\"\n    y_train_path\
           \ = \"/tmp/y_train.pt\"\n    y_test_path = \"/tmp/y_test.pt\"\n    torch.save(X_train,\
-          \ X_train_path)\n    X_train_info = pd.read_csv(X_train_path)\n    prep_data_info.log_metric(\"\
-          X_train size\", X_train_info.shape[0])\n    os.rename(X_train_path, X_train_artifact.path)\n\
-          \n    torch.save(X_test, X_test_path)\n    X_test_info = pd.read_csv(X_test_path)\n\
-          \    prep_data_info.log_metric(\"X_test size\", X_test_info.shape[0])\n\
-          \    os.rename(X_test_path, X_test_artifact.path)\n\n    torch.save(y_train,\
-          \ y_train_path)\n    y_train_info = pd.read_csv(y_train_path)\n    prep_data_info.log_metric(\"\
-          y_train size\", y_train_info.shape[0])\n    os.rename(y_train_path, y_train_artifact.path)\n\
-          \n    torch.save(y_test, y_test_path)\n    y_test_info = pd.read_csv(y_test_path)\n\
-          \    prep_data_info.log_metric(\"y_test size\", y_test_info.shape[0])\n\
-          \    os.rename(y_test_path, y_test_artifact.path)\n\n"
+          \ X_train_path)\n    os.rename(X_train_path, X_train_artifact.path)\n\n\
+          \    torch.save(X_test, X_test_path)\n    os.rename(X_test_path, X_test_artifact.path)\n\
+          \n    torch.save(y_train, y_train_path)\n    os.rename(y_train_path, y_train_artifact.path)\n\
+          \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
+          \n"
         image: python:3.11.9
     exec-model-serving:
       container:
