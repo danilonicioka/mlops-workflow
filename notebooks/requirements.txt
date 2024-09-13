@@ -1,0 +1,3 @@
+kfp==2.7.0
+python-dotenv
+dvc[s3]

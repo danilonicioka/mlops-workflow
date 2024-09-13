@@ -1,0 +1,11 @@
+kfp==2.7.0
+python-dotenv
+dvc[s3]
+gitpython
+dvc==3.54.1
+dvc-s3==3.2.0
+numpy==1.25.2
+pandas==2.0.3
+torch==2.3.0
+scikit-learn==1.2.2
+imbalanced-learn==0.11.0

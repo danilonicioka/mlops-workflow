@@ -1,23 +1,8 @@
-mlops_worflow
-
-==============================
-Local run
-```
-k port-forward svc/minio-svc -n minio 9090 9000
-```
-```
-k port-forward svc/ml-pipeline-ui 3000:80
-```
-
-==============================
-
-test from End to End Machine learning pipeline with MLOps tools
-
 Project Organization
 ------------
 
-    ├── LICENSE
-    ├── README.md                   <- The top-level README for developers using this project.
+    ├── components                  <- python files for tests
+    │   ├── 3sdnn.py                <- python code extracted from 3s-DNN.ipynb (youtubegoes5g notebook)
     ├── data
     │   ├── external                <- Data from third party sources.
     │   ├── interim                 <- Intermediate data that has been transformed.
@@ -49,3 +34,5 @@ Project Organization
     │   ├── 3sdnn.py                <- just the python script parts
     |
     ├── pipeline                    <- files to deploy kubeflow pipeline
+    ├── LICENSE
+    ├── README.md
