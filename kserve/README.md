@@ -1,3 +1,5 @@
+# Commands to test kserve manually
+
 torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file model.py --serialized-file model_trained_artifact.pt --handler base_handler --requirements-file requirements.txt
 
 kubectl create namespace kserve-test
