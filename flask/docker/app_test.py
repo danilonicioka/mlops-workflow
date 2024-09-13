@@ -747,7 +747,7 @@ def append_csv():
             #return jsonify({'error': 'Performance factor not provided'}), 400
 
         try:
-            performance_factor = float(performance_factor)  # Convert to float
+            performance_factor = float(performance_factor)/100.0  # Convert to float
         except ValueError:
             return jsonify({'error': 'Invalid performance factor. Must be a number.'}), 400
 
