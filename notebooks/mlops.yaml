@@ -32,6 +32,38 @@
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
 components:
+  comp-condition-1:
+    dag:
+      tasks:
+        model-serving:
+          cachingOptions:
+            enableCache: true
+          componentRef:
+            name: comp-model-serving
+          inputs:
+            parameters:
+              bucket_name:
+                componentInputParameter: pipelinechannel--bucket_name
+              model_name:
+                componentInputParameter: pipelinechannel--model_name
+              namespace:
+                componentInputParameter: pipelinechannel--namespace
+              svc_acc:
+                componentInputParameter: pipelinechannel--svc_acc
+          taskInfo:
+            name: model-serving
+    inputDefinitions:
+      parameters:
+        pipelinechannel--bucket_name:
+          parameterType: STRING
+        pipelinechannel--model-serve-condition-Output:
+          parameterType: STRING
+        pipelinechannel--model_name:
+          parameterType: STRING
+        pipelinechannel--namespace:
+          parameterType: STRING
+        pipelinechannel--svc_acc:
+          parameterType: STRING
   comp-data-ingestion:
     executorLabel: exec-data-ingestion
     inputDefinitions:
@@ -105,6 +137,30 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
+  comp-model-serve-condition:
+    executorLabel: exec-model-serve-condition
+    inputDefinitions:
+      artifacts:
+        model_serve:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-model-serving:
+    executorLabel: exec-model-serving
+    inputDefinitions:
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        model_name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+        svc_acc:
+          parameterType: STRING
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -327,6 +383,88 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-model-serve-condition:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_serve_condition
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
+          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_serve_condition(\n    model_serve: Input[Artifact]\n) ->\
+          \ str:\n    with open(model_serve.path) as f:\n        model_serve_condition\
+          \ = f.read()\n    return model_serve_condition\n\n"
+        image: python:3.11.9
+    exec-model-serving:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - model_serving
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
+          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef model_serving(\n    bucket_name: str,\n    model_name: str,\n\
+          \    namespace: str,\n    svc_acc: str\n):\n    # Create kserve instance\n\
+          \    from kubernetes import client \n    from kserve import KServeClient,\
+          \ constants, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
+          \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
+          \n    #TFServing wants this type of structure ./models/1/model\n    # the\
+          \ number represent the model version\n    # in this example we use only\
+          \ 1 version\n\n    #Inference server config\n    now = datetime.now()\n\
+          \    kserve_version='v1beta1'\n    api_version = constants.KSERVE_GROUP\
+          \ + '/' + kserve_version\n\n    uri = f's3://{bucket_name}'\n\n    isvc\
+          \ = V1beta1InferenceService(api_version=api_version,\n                 \
+          \                  kind=constants.KSERVE_KIND,\n                       \
+          \            metadata=client.V1ObjectMeta(\n                           \
+          \            name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
+          \                                   spec=V1beta1InferenceServiceSpec(\n\
+          \                                   predictor=V1beta1PredictorSpec(\n  \
+          \                                     service_account_name=svc_acc,\n  \
+          \                                     pytorch=(V1beta1TorchServeSpec(\n\
+          \                                           storage_uri=uri))))\n    )\n\
+          \n    KServe = KServeClient()\n\n    #replace old inference service with\
+          \ a new one\n    try:\n        KServe.delete(name=model_name, namespace=namespace)\n\
+          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
+          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
+        image: python:3.11.9
     exec-model-training:
       container:
         args:
@@ -517,6 +655,30 @@ root:
           - outputArtifactKey: metrics
             producerSubtask: model-training
     tasks:
+      condition-1:
+        componentRef:
+          name: comp-condition-1
+        dependentTasks:
+        - model-serve-condition
+        inputs:
+          parameters:
+            pipelinechannel--bucket_name:
+              componentInputParameter: bucket_name
+            pipelinechannel--model-serve-condition-Output:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: model-serve-condition
+            pipelinechannel--model_name:
+              componentInputParameter: model_name
+            pipelinechannel--namespace:
+              componentInputParameter: namespace
+            pipelinechannel--svc_acc:
+              componentInputParameter: svc_acc
+        taskInfo:
+          name: deploy-inference-service
+        triggerPolicy:
+          condition: inputs.parameter_values['pipelinechannel--model-serve-condition-Output']
+            == '1'
       data-ingestion:
         cachingOptions:
           enableCache: true
@@ -565,6 +727,21 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
+      model-serve-condition:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-serve-condition
+        dependentTasks:
+        - model-training
+        inputs:
+          artifacts:
+            model_serve:
+              taskOutputArtifact:
+                outputArtifactKey: model_serve
+                producerTask: model-training
+        taskInfo:
+          name: model-serve-condition
       model-training:
         cachingOptions:
           enableCache: true
