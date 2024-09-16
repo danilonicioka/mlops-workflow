@@ -41,7 +41,7 @@ Project Organization
     │   │                                      the creator's initials, and a short `-` delimited description, e.g.
     │   │                                      `1.0-jqp-initial-data-exploration`.
     │   ├── 1.0-drn-mlops-pipeline.ipynb        <- mlops pipeline notebook
-    │   ├── 1.1-drn-test-components.ipynb       <- notebook to test the components in mlops pipeline notebook
+    │   ├── 1.1-drn-test-components.ipynb       <- notebook to test the components in mlops pipeline notebooks
     │   ├── 2.0-3s-DNN.ipynb                    <- notebook from youtubegoes5g
     │   ├── 2.1-3s-DNN-custom.ipynb             <- notebook from youtubegoes5g but edited to download database etc
     │   ├── env                                 <- env file
@@ -49,6 +49,5 @@ Project Organization
     │   ├── requirements-components-test.txt    <- requirements to run test components notebook
     │   └── requirements.txt                    <- requirements to run mlops pipeline
     │
-    ├── pipeline                                <- files to deploy kubeflow pipeline
     ├── LICENSE
     └── README.md

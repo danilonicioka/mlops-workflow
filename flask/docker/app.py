@@ -23,8 +23,8 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuration variables
-# config = {
+# Configuration variables - some works better with this format
+config = {
 #     "REPO_URL": os.environ.get('REPO_URL', 'https://github.com/danilonicioka/mlops-workflow.git'),
 #     "CLONED_DIR": os.environ.get('CLONED_DIR', 'mlops-workflow'),
 #     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 #     "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
 #     "SECRET_KEY": os.environ.get('SECRET_KEY'),
 #     "REMOTE_NAME": os.environ.get('REMOTE_NAME', 'minio_remote'),
-#     "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
-#     "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
+    "GITHUB_USERNAME": os.environ.get('GITHUB_USERNAME'),
+    "GITHUB_TOKEN": os.environ.get('GITHUB_TOKEN'),
 #     "MODEL_NAME": os.environ.get('MODEL_NAME', 'youtubegoes5g'),
 #     "NAMESPACE": os.environ.get('NAMESPACE', 'kubeflow-user-example-com'),
 #     "LR": float(os.environ.get('LR', 0.0001)),  # Learning rate, converted to float
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 #     "DEX_USER": os.environ.get('DEX_USER'),
 #     "DEX_PASS": os.environ.get('DEX_PASS'),
 #     "SVC_ACC_KFP": os.environ.get('SVC_ACC', 'default-editor'),
-# }
+}
 
 REPO_URL = 'https://github.com/danilonicioka/mlops-workflow.git'
 CLONED_DIR = 'mlops-workflow'
@@ -65,8 +65,6 @@ MINIO_URL = 'localhost:9000'
 ACCESS_KEY = os.environ.get('ACCESS_KEY')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 REMOTE_NAME = 'minio_remote'
-GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME'),
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN'),
 MODEL_NAME = 'youtubegoes5g'
 NAMESPACE = 'kubeflow-user-example-com'
 LR =  0.0001  # Learning rate, converted to float
@@ -661,7 +659,7 @@ def init():
         # Clone the repository from the tests branch
         repo = clone_repository_with_token(
             REPO_URL, CLONED_DIR, BRANCH_NAME,
-            GITHUB_USERNAME, GITHUB_TOKEN
+            config['GITHUB_USERNAME'], config['GITHUB_TOKEN']
         )
 
         # Download the file and save it as the target CSV file
