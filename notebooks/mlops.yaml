@@ -8,6 +8,7 @@
 #    dvc_file_dir: str
 #    dvc_file_name: str
 #    epochs: int
+#    github_repo_url: str
 #    github_token: str
 #    github_username: str
 #    last_accuracy_object_name: str
@@ -20,7 +21,6 @@
 #    print_frequency: int
 #    remote_name: str
 #    remote_url: str
-#    repo_url: str
 #    secret_key: str
 #    svc_acc: str
 #    tmp_dir: str
@@ -46,6 +46,8 @@ components:
           parameterType: STRING
         dvc_file_name:
           parameterType: STRING
+        github_repo_url:
+          parameterType: STRING
         github_token:
           parameterType: STRING
         github_username:
@@ -55,8 +57,6 @@ components:
         remote_name:
           parameterType: STRING
         remote_url:
-          parameterType: STRING
-        repo_url:
           parameterType: STRING
         secret_key:
           parameterType: STRING
@@ -223,17 +223,17 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef data_ingestion(\n    repo_url: str,\n    cloned_dir: str,\n \
-          \   branch_name: str,\n    github_username: str,\n    github_token: str,\n\
+          \ *\n\ndef data_ingestion(\n    github_repo_url: str,\n    cloned_dir: str,\n\
+          \    branch_name: str,\n    github_username: str,\n    github_token: str,\n\
           \    remote_name: str,\n    remote_url: str,\n    minio_url: str,\n    access_key:\
           \ str,\n    secret_key: str,\n    dvc_file_dir: str,\n    dvc_file_name:\
           \ str,\n    dataset_artifact: Output[Dataset],\n    dataset_info: Output[Metrics]\n\
           \    ):\n    from git import Repo\n    from subprocess import run, CalledProcessError\n\
-          \    import os\n    import pandas as pd\n\n    def clone_repository_with_token(repo_url,\
+          \    import os\n    import pandas as pd\n\n    def clone_repository_with_token(github_repo_url,\
           \ cloned_dir, branch_name, github_username, github_token):\n        \"\"\
           \"Clone a Git repository using a GitHub token in the URL and specifying\
           \ the branch.\"\"\"\n        try:\n            # Construct the URL with\
-          \ the GitHub username and token\n            url_with_token = f\"https://{github_username}:{github_token}@{repo_url.split('//')[1]}\"\
+          \ the GitHub username and token\n            url_with_token = f\"https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
           \n\n            # Clone the repository from the specified branch\n     \
           \       repo = Repo.clone_from(url_with_token, cloned_dir, branch=branch_name)\n\
           \            return \"Repository cloned successfully\"\n        except Exception\
@@ -273,8 +273,8 @@ deploymentSpec:
           \ pulled data from remote DVC repository\"\n\n        except Exception as\
           \ e:\n            # Log and handle the error\n            return f\"Error\
           \ occurred during dvc pull: {e}\"\n\n    # Call the functions\n    clone_result\
-          \ = clone_repository_with_token(repo_url, cloned_dir, branch_name, github_username,\
-          \ github_token)\n    configure_result = configure_dvc_remote(cloned_dir,\
+          \ = clone_repository_with_token(github_repo_url, cloned_dir, branch_name,\
+          \ github_username, github_token)\n    configure_result = configure_dvc_remote(cloned_dir,\
           \ remote_name, remote_url, minio_url, access_key, secret_key)\n    dvc_pull_result\
           \ = perform_dvc_pull(cloned_dir, remote_name)\n\n    # Save dataset with\
           \ pandas in Dataset artifact\n    pulled_dataset_path = os.path.join(cloned_dir,\
@@ -385,8 +385,8 @@ deploymentSpec:
           \ = f.read()\n\n    if up_model == '1':\n        cond_info.log_metric(\"\
           Up model\", up_model)\n\n        #Inference server config\n        now =\
           \ datetime.now()\n        kserve_version='v1beta1'\n        api_version\
-          \ = constants.KSERVE_GROUP + '/' + kserve_version\n\n        with open(model_uri.path)\
-          \ as f:\n            uri = f.read()\n        # uri = f's3://{bucket_name}'\n\
+          \ = constants.KSERVE_GROUP + '/' + kserve_version\n\n        # with open(model_uri.path)\
+          \ as f:\n        #     uri = f.read()\n        uri = f's3://{bucket_name}'\n\
           \n        isvc = V1beta1InferenceService(api_version=api_version,\n    \
           \                                   kind=constants.KSERVE_KIND,\n      \
           \                                 metadata=client.V1ObjectMeta(\n      \
@@ -613,6 +613,8 @@ root:
               componentInputParameter: dvc_file_dir
             dvc_file_name:
               componentInputParameter: dvc_file_name
+            github_repo_url:
+              componentInputParameter: github_repo_url
             github_token:
               componentInputParameter: github_token
             github_username:
@@ -623,8 +625,6 @@ root:
               componentInputParameter: remote_name
             remote_url:
               componentInputParameter: remote_url
-            repo_url:
-              componentInputParameter: repo_url
             secret_key:
               componentInputParameter: secret_key
         taskInfo:
@@ -738,6 +738,8 @@ root:
         parameterType: STRING
       epochs:
         parameterType: NUMBER_INTEGER
+      github_repo_url:
+        parameterType: STRING
       github_token:
         parameterType: STRING
       github_username:
@@ -761,8 +763,6 @@ root:
       remote_name:
         parameterType: STRING
       remote_url:
-        parameterType: STRING
-      repo_url:
         parameterType: STRING
       secret_key:
         parameterType: STRING
