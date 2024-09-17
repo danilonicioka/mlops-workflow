@@ -89,7 +89,6 @@ COMMIT_MSG_APPEND = 'Update .dvc file'
 
 TRIGGER_TYPE = '0'
 QUANTITY_FACTOR = 0.1
-FIRST_RUN = '0'
 
 TEMP_DIR = "tmp"
 TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN = "n_samples_since_last_run.txt"
@@ -842,7 +841,6 @@ def append_csv():
             'object_name': OBJECT_NAME,
             'svc_acc': SVC_ACC,
             'trigger_type': trigger_type,  # Include the trigger type in the pipeline parameters
-            'first_run': FIRST_RUN,
             'performance_factor': performance_factor,
             'last_accuracy_object_name': LAST_ACC_OBJECT_NAME,
             'tmp_dir': TEMP_DIR,

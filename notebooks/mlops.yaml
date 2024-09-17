@@ -8,7 +8,6 @@
 #    dvc_file_dir: str
 #    dvc_file_name: str
 #    epochs: int
-#    first_run: str
 #    github_token: str
 #    github_username: str
 #    last_accuracy_object_name: str
@@ -29,41 +28,10 @@
 #    trigger_type: str
 # Outputs:
 #    data-ingestion-dataset_info: system.Metrics
+#    model-serving-cond_info: system.Metrics
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
 components:
-  comp-condition-1:
-    dag:
-      tasks:
-        model-serving:
-          cachingOptions:
-            enableCache: true
-          componentRef:
-            name: comp-model-serving
-          inputs:
-            parameters:
-              bucket_name:
-                componentInputParameter: pipelinechannel--bucket_name
-              model_name:
-                componentInputParameter: pipelinechannel--model_name
-              namespace:
-                componentInputParameter: pipelinechannel--namespace
-              svc_acc:
-                componentInputParameter: pipelinechannel--svc_acc
-          taskInfo:
-            name: model-serving
-    inputDefinitions:
-      parameters:
-        pipelinechannel--bucket_name:
-          parameterType: STRING
-        pipelinechannel--model-serve-condition-Output:
-          parameterType: STRING
-        pipelinechannel--model_name:
-          parameterType: STRING
-        pipelinechannel--namespace:
-          parameterType: STRING
-        pipelinechannel--svc_acc:
-          parameterType: STRING
   comp-data-ingestion:
     executorLabel: exec-data-ingestion
     inputDefinitions:
@@ -137,21 +105,14 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
-  comp-model-serve-condition:
-    executorLabel: exec-model-serve-condition
-    inputDefinitions:
-      artifacts:
-        model_serve:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
-    outputDefinitions:
-      parameters:
-        Output:
-          parameterType: STRING
   comp-model-serving:
     executorLabel: exec-model-serving
     inputDefinitions:
+      artifacts:
+        up_model_cond:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
       parameters:
         bucket_name:
           parameterType: STRING
@@ -161,6 +122,12 @@ components:
           parameterType: STRING
         svc_acc:
           parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        cond_info:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
   comp-model-training:
     executorLabel: exec-model-training
     inputDefinitions:
@@ -188,8 +155,6 @@ components:
           parameterType: STRING
         epochs:
           parameterType: NUMBER_INTEGER
-        first_run:
-          parameterType: STRING
         last_accuracy_object_name:
           parameterType: STRING
         lr:
@@ -220,13 +185,13 @@ components:
           artifactType:
             schemaTitle: system.Metrics
             schemaVersion: 0.0.1
-        model_serve:
-          artifactType:
-            schemaTitle: system.Artifact
-            schemaVersion: 0.0.1
         model_trained_artifact:
           artifactType:
             schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        up_model_cond:
+          artifactType:
+            schemaTitle: system.Artifact
             schemaVersion: 0.0.1
 deploymentSpec:
   executors:
@@ -383,37 +348,6 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
-    exec-model-serve-condition:
-      container:
-        args:
-        - --executor_input
-        - '{{$}}'
-        - --function_to_execute
-        - model_serve_condition
-        command:
-        - sh
-        - -c
-        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
-          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
-          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
-          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.0'\
-          \ 'kubernetes==30.1.0' && \"$0\" \"$@\"\n"
-        - sh
-        - -ec
-        - 'program_path=$(mktemp -d)
-
-
-          printf "%s" "$0" > "$program_path/ephemeral_component.py"
-
-          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
-
-          '
-        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef model_serve_condition(\n    model_serve: Input[Artifact]\n) ->\
-          \ str:\n    with open(model_serve.path) as f:\n        model_serve_condition\
-          \ = f.read()\n    return model_serve_condition\n\n"
-        image: python:3.11.9
     exec-model-serving:
       container:
         args:
@@ -441,29 +375,34 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef model_serving(\n    bucket_name: str,\n    model_name: str,\n\
-          \    namespace: str,\n    svc_acc: str\n):\n    # Create kserve instance\n\
-          \    from kubernetes import client \n    from kserve import KServeClient,\
-          \ constants, V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
-          \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
-          \n    #TFServing wants this type of structure ./models/1/model\n    # the\
-          \ number represent the model version\n    # in this example we use only\
-          \ 1 version\n\n    #Inference server config\n    now = datetime.now()\n\
-          \    kserve_version='v1beta1'\n    api_version = constants.KSERVE_GROUP\
-          \ + '/' + kserve_version\n\n    uri = f's3://{bucket_name}'\n\n    isvc\
-          \ = V1beta1InferenceService(api_version=api_version,\n                 \
-          \                  kind=constants.KSERVE_KIND,\n                       \
-          \            metadata=client.V1ObjectMeta(\n                           \
-          \            name=model_name, namespace=namespace, annotations={'sidecar.istio.io/inject':'false'}),\n\
-          \                                   spec=V1beta1InferenceServiceSpec(\n\
-          \                                   predictor=V1beta1PredictorSpec(\n  \
-          \                                     service_account_name=svc_acc,\n  \
-          \                                     pytorch=(V1beta1TorchServeSpec(\n\
-          \                                           storage_uri=uri))))\n    )\n\
-          \n    KServe = KServeClient()\n\n    #replace old inference service with\
-          \ a new one\n    try:\n        KServe.delete(name=model_name, namespace=namespace)\n\
-          \        print(\"Old model deleted\")\n    except:\n        print(\"Couldn't\
-          \ delete old model\")\n    time.sleep(10)\n\n    KServe.create(isvc)\n\n"
+          \ *\n\ndef model_serving(\n    up_model_cond: Input[Artifact],\n    cond_info:\
+          \ Output[Metrics],\n    bucket_name: str,\n    model_name: str,\n    namespace:\
+          \ str,\n    svc_acc: str\n):\n    # Create kserve instance\n    from kubernetes\
+          \ import client \n    from kserve import KServeClient, constants, V1beta1InferenceService,\
+          \ V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec\n\
+          \    from datetime import datetime\n    import time\n\n    # exec if a new\
+          \ model was uploaded\n    with open(up_model_cond.path) as f:\n        up_model\
+          \ = f.read()\n\n    if up_model == '1':\n        cond_info.log_metric(\"\
+          Up model\", up_model)\n\n        #Inference server config\n        now =\
+          \ datetime.now()\n        kserve_version='v1beta1'\n        api_version\
+          \ = constants.KSERVE_GROUP + '/' + kserve_version\n\n        with open(model_uri.path)\
+          \ as f:\n            uri = f.read()\n        # uri = f's3://{bucket_name}'\n\
+          \n        isvc = V1beta1InferenceService(api_version=api_version,\n    \
+          \                                   kind=constants.KSERVE_KIND,\n      \
+          \                                 metadata=client.V1ObjectMeta(\n      \
+          \                                     name=model_name, namespace=namespace,\
+          \ annotations={'sidecar.istio.io/inject':'false'}),\n                  \
+          \                     spec=V1beta1InferenceServiceSpec(\n              \
+          \                         predictor=V1beta1PredictorSpec(\n            \
+          \                               service_account_name=svc_acc,\n        \
+          \                                   pytorch=(V1beta1TorchServeSpec(\n  \
+          \                                             storage_uri=uri))))\n    \
+          \    )\n\n        KServe = KServeClient()\n\n        #replace old inference\
+          \ service with a new one\n        try:\n            KServe.delete(name=model_name,\
+          \ namespace=namespace)\n            print(\"Old model deleted\")\n     \
+          \   except:\n            print(\"Couldn't delete old model\")\n        time.sleep(10)\n\
+          \n        KServe.create(isvc)\n    else:\n        cond_info.log_metric(\"\
+          Up model\", '0')\n\n"
         image: python:3.11.9
     exec-model-training:
       container:
@@ -496,24 +435,24 @@ deploymentSpec:
           \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
-          \ Output[Model],\n    model_serve: Output[Artifact],\n    lr: float,\n \
-          \   epochs: int,\n    print_frequency: int,\n    minio_url: str,\n    access_key:\
+          \ Output[Model],\n    up_model_cond: Output[Artifact],\n    lr: float,\n\
+          \    epochs: int,\n    print_frequency: int,\n    minio_url: str,\n    access_key:\
           \ str,\n    secret_key: str,\n    bucket_name: str,\n    model_object_name:\
-          \ str,\n    trigger_type: str,\n    first_run: str,\n    performance_factor:\
-          \ float,\n    last_accuracy_object_name: str,\n    tmp_dir: str,\n    tmp_file_last_acc:\
-          \ str\n    ):\n    import os\n    import torch\n    from torch import nn\n\
-          \    from sklearn.metrics import accuracy_score, confusion_matrix, precision_score,\
-          \ recall_score, f1_score\n    from minio import Minio\n\n    # Build model\
-          \ with non-linear activation function\n    class InterruptionModel(nn.Module):\n\
-          \        def __init__(self):\n            super().__init__()\n         \
-          \   self.layer_1 = nn.Linear(in_features=29, out_features=200)\n       \
-          \     self.layer_2 = nn.Linear(in_features=200, out_features=100)\n    \
-          \        self.layer_3 = nn.Linear(in_features=100, out_features=1)\n   \
-          \         self.relu = nn.ReLU() # <- add in ReLU activation function\n \
-          \           # Can also put sigmoid in the model\n            # This would\
-          \ mean you don't need to use it on the predictions\n            # self.sigmoid\
-          \ = nn.Sigmoid()\n\n        def forward(self, x):\n            # Intersperse\
-          \ the ReLU activation function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \ str,\n    trigger_type: str,\n    performance_factor: float,\n    last_accuracy_object_name:\
+          \ str,\n    tmp_dir: str,\n    tmp_file_last_acc: str\n    ):\n    import\
+          \ os\n    import torch\n    from torch import nn\n    from sklearn.metrics\
+          \ import accuracy_score, confusion_matrix, precision_score, recall_score,\
+          \ f1_score\n    from minio import Minio\n\n    # Build model with non-linear\
+          \ activation function\n    class InterruptionModel(nn.Module):\n       \
+          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
+          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
+          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
+          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
+          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
+          \ put sigmoid in the model\n            # This would mean you don't need\
+          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
+          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
+          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
           \n    # Helper functions\n    def accuracy_fn(y_true, y_pred):\n       \
           \ correct = torch.eq(y_true, y_pred).sum().item() # torch.eq() calculates\
           \ where two tensors are equal\n        acc = (correct / len(y_pred)) * 100\n\
@@ -593,48 +532,46 @@ deploymentSpec:
           \             y_pred=test_pred)\n\n\n        # Print out what's happening\n\
           \        if epoch % print_frequency == 0:\n            print(f\"Epoch: {epoch}\
           \ | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f},\
-          \ Test Accuracy: {test_acc:.2f}%\")\n\n        model.eval()\n        with\
-          \ torch.no_grad():\n            y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
-          \n        if device == \"cuda\":\n            predictions = y_preds.cpu().numpy()\
-          \ #if it is cuda, then this, otherwise y_pred.numpy()\n            true_labels\
-          \ = y_test.cpu().numpy()\n        else:\n            predictions = y_preds.numpy()\n\
-          \            true_labels = y_test.numpy()\n\n        # Confusion Matrix\n\
-          \        cmatrix = confusion_matrix(true_labels, predictions)\n        #print(\"\
-          Confusion Matrix:\", cmatrix)\n\n        # Metrics\n        accuracy = accuracy_score(true_labels,\
-          \ predictions)\n        metrics.log_metric(\"Accuracy\", accuracy)\n   \
-          \     #print('Accuracy: %f' % accuracy)\n\n        # test accuracy\n   \
-          \     print(type(accuracy))\n\n        precision = precision_score(true_labels,\
-          \  predictions, average='weighted')\n        metrics.log_metric(\"Precision\"\
-          , precision)\n        #print('Precision: %f' % precision)\n\n        recall\
-          \ = recall_score(true_labels, predictions, average='weighted')\n       \
-          \ metrics.log_metric(\"Recall\", recall)\n        #print('Recall: %f' %\
-          \ recall)\n\n        microf1 = f1_score(true_labels, predictions, average='micro')\n\
-          \        metrics.log_metric(\"Micro F1 score\", microf1)\n        #print('Micro\
-          \ F1 score: %f' % microf1)\n\n        macrof1 = f1_score(true_labels, predictions,\
-          \ average='macro')\n        metrics.log_metric(\"Macro F1 score\", macrof1)\n\
-          \        #print('Macro F1 score: %f' % macrof1)\n\n        target_names\
-          \ = ['No-Stall', 'Stall']\n        # Print precision-recall report\n   \
-          \     #print(classification_report(true_labels, predictions, target_names=target_names))\n\
-          \n        # Classification Metrics artifact\n        cmatrix = cmatrix.tolist()\n\
-          \        target_names = ['No-Stall', 'Stall']\n        classification_metrics.log_confusion_matrix(target_names,\
-          \ cmatrix)\n\n        # Save model\n        model_path = \"/tmp/model.pt\"\
-          \n        torch.save(model.state_dict(), model_path)\n        os.rename(model_path,\
-          \ model_trained_artifact.path)\n\n        # Setup minio client to upload\
-          \ and read files\n        client = minio_setup(minio_url, access_key, secret_key)\n\
-          \n        previous_accuracy = get_accuracy_in_last_run(client, bucket_name,\
-          \ last_accuracy_object_name)\n\n        print(accuracy-previous_accuracy)\n\
-          \        metrics.log_metric(\"current-previous accuracy\", accuracy-previous_accuracy)\n\
-          \n        if trigger_type == '1' or trigger_type == '2':\n            up_model\
-          \ = True\n        elif trigger_type == '3':\n            if accuracy - previous_accuracy\
-          \ > performance_factor:\n                up_model = True\n             \
-          \   update_accuracy_in_last_run(client, bucket_name, last_accuracy_object_name,\
-          \ accuracy, tmp_dir, tmp_file_last_acc)\n        else:\n            up_model\
-          \ = False\n            metrics.log_metric(\"Up model\", 0)\n\n        if\
-          \ up_model:\n            upload_model_result = upload_file(client, bucket_name,\
-          \ model_object_name, model_trained_artifact.path)\n            metrics.log_metric(\"\
-          Up model\", 1)\n\n        # export model_uri just so that the model serving\
-          \ exec just after the training\n        with open(model_serve.path, 'w')\
-          \ as f:\n            f.write(first_run)\n\n"
+          \ Test Accuracy: {test_acc:.2f}%\")\n\n    model.eval()\n    with torch.no_grad():\n\
+          \        y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
+          \n    if device == \"cuda\":\n        predictions = y_preds.cpu().numpy()\
+          \ #if it is cuda, then this, otherwise y_pred.numpy()\n        true_labels\
+          \ = y_test.cpu().numpy()\n    else:\n        predictions = y_preds.numpy()\n\
+          \        true_labels = y_test.numpy()\n\n    # Confusion Matrix\n    cmatrix\
+          \ = confusion_matrix(true_labels, predictions)\n    #print(\"Confusion Matrix:\"\
+          , cmatrix)\n\n    # Metrics\n    accuracy = accuracy_score(true_labels,\
+          \ predictions)\n    metrics.log_metric(\"Accuracy\", accuracy)\n    #print('Accuracy:\
+          \ %f' % accuracy)\n\n    # test accuracy\n    print(type(accuracy))\n\n\
+          \    precision = precision_score(true_labels,  predictions, average='weighted')\n\
+          \    metrics.log_metric(\"Precision\", precision)\n    #print('Precision:\
+          \ %f' % precision)\n\n    recall = recall_score(true_labels, predictions,\
+          \ average='weighted')\n    metrics.log_metric(\"Recall\", recall)\n    #print('Recall:\
+          \ %f' % recall)\n\n    microf1 = f1_score(true_labels, predictions, average='micro')\n\
+          \    metrics.log_metric(\"Micro F1 score\", microf1)\n    #print('Micro\
+          \ F1 score: %f' % microf1)\n\n    macrof1 = f1_score(true_labels, predictions,\
+          \ average='macro')\n    metrics.log_metric(\"Macro F1 score\", macrof1)\n\
+          \    #print('Macro F1 score: %f' % macrof1)\n\n    target_names = ['No-Stall',\
+          \ 'Stall']\n    # Print precision-recall report\n    #print(classification_report(true_labels,\
+          \ predictions, target_names=target_names))\n\n    # Classification Metrics\
+          \ artifact\n    cmatrix = cmatrix.tolist()\n    target_names = ['No-Stall',\
+          \ 'Stall']\n    classification_metrics.log_confusion_matrix(target_names,\
+          \ cmatrix)\n\n    # Save model\n    model_path = \"/tmp/model.pt\"\n   \
+          \ torch.save(model.state_dict(), model_path)\n    os.rename(model_path,\
+          \ model_trained_artifact.path)\n\n    # Setup minio client to upload and\
+          \ read files\n    client = minio_setup(minio_url, access_key, secret_key)\n\
+          \n    previous_accuracy = get_accuracy_in_last_run(client, bucket_name,\
+          \ last_accuracy_object_name)\n\n    print(accuracy-previous_accuracy)\n\
+          \    metrics.log_metric(\"current-previous accuracy\", accuracy-previous_accuracy)\n\
+          \n    if trigger_type == '1' or trigger_type == '2':\n        up_model =\
+          \ True\n    elif trigger_type == '3':\n        if accuracy - previous_accuracy\
+          \ > performance_factor:\n            up_model = True\n            update_accuracy_in_last_run(client,\
+          \ bucket_name, last_accuracy_object_name, accuracy, tmp_dir, tmp_file_last_acc)\n\
+          \    else:\n        up_model = False\n        metrics.log_metric(\"up model\"\
+          , '0')\n        with open(up_model_cond.path, 'w') as f:\n            f.write('0')\n\
+          \n    if up_model:\n        metrics.log_metric(\"up model\", '1')\n    \
+          \    with open(up_model_cond.path, 'w') as f:\n            f.write('1')\n\
+          \        upload_model_result = upload_file(client, bucket_name, model_object_name,\
+          \ model_trained_artifact.path)\n\n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
@@ -646,6 +583,10 @@ root:
           artifactSelectors:
           - outputArtifactKey: dataset_info
             producerSubtask: data-ingestion
+        model-serving-cond_info:
+          artifactSelectors:
+          - outputArtifactKey: cond_info
+            producerSubtask: model-serving
         model-training-classification_metrics:
           artifactSelectors:
           - outputArtifactKey: classification_metrics
@@ -655,30 +596,6 @@ root:
           - outputArtifactKey: metrics
             producerSubtask: model-training
     tasks:
-      condition-1:
-        componentRef:
-          name: comp-condition-1
-        dependentTasks:
-        - model-serve-condition
-        inputs:
-          parameters:
-            pipelinechannel--bucket_name:
-              componentInputParameter: bucket_name
-            pipelinechannel--model-serve-condition-Output:
-              taskOutputParameter:
-                outputParameterKey: Output
-                producerTask: model-serve-condition
-            pipelinechannel--model_name:
-              componentInputParameter: model_name
-            pipelinechannel--namespace:
-              componentInputParameter: namespace
-            pipelinechannel--svc_acc:
-              componentInputParameter: svc_acc
-        taskInfo:
-          name: deploy-inference-service
-        triggerPolicy:
-          condition: inputs.parameter_values['pipelinechannel--model-serve-condition-Output']
-            == '1'
       data-ingestion:
         cachingOptions:
           enableCache: true
@@ -727,21 +644,30 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
-      model-serve-condition:
+      model-serving:
         cachingOptions:
           enableCache: true
         componentRef:
-          name: comp-model-serve-condition
+          name: comp-model-serving
         dependentTasks:
         - model-training
         inputs:
           artifacts:
-            model_serve:
+            up_model_cond:
               taskOutputArtifact:
-                outputArtifactKey: model_serve
+                outputArtifactKey: up_model_cond
                 producerTask: model-training
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            model_name:
+              componentInputParameter: model_name
+            namespace:
+              componentInputParameter: namespace
+            svc_acc:
+              componentInputParameter: svc_acc
         taskInfo:
-          name: model-serve-condition
+          name: model-serving
       model-training:
         cachingOptions:
           enableCache: true
@@ -774,8 +700,6 @@ root:
               componentInputParameter: bucket_name
             epochs:
               componentInputParameter: epochs
-            first_run:
-              componentInputParameter: first_run
             last_accuracy_object_name:
               componentInputParameter: last_accuracy_object_name
             lr:
@@ -814,8 +738,6 @@ root:
         parameterType: STRING
       epochs:
         parameterType: NUMBER_INTEGER
-      first_run:
-        parameterType: STRING
       github_token:
         parameterType: STRING
       github_username:
@@ -855,6 +777,10 @@ root:
   outputDefinitions:
     artifacts:
       data-ingestion-dataset_info:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+      model-serving-cond_info:
         artifactType:
           schemaTitle: system.Metrics
           schemaVersion: 0.0.1
