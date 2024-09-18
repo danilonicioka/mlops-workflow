@@ -1,16 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-top: 50px;
+        }
+        .container {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .alert {
+            text-align: center;
+            margin: 20px auto;
+            padding: 15px;
+            width: 80%;
+            border-radius: 5px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
 </head>
 <body>
     <h1>Welcome to the Flask App</h1>
+
     {% if success_message %}
         <div class="alert alert-success">
             {{ success_message[0] }}
         </div>
     {% endif %}
-    <button onclick="window.location.href='/init'">Initialize</button>
-    <button onclick="window.location.href='/append_csv'">Add new data</button>
+    
+    {% if fail_message %}
+        <div class="alert alert-fail">
+            {{ fail_message[0] }}
+        </div>
+    {% endif %}
+
+    <div class="container">
+        <button class="button" onclick="window.location.href='/init'">Initialize</button>
+        <button class="button" onclick="window.location.href='/append_csv'">Add new data</button>
+    </div>
 </body>
 </html>

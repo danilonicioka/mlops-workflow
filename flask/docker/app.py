@@ -657,11 +657,12 @@ def update_number_samples(new_quantity, dir, file):
 
 @app.route('/')
 def home():
-    """Route to render the home page with buttons to navigate to /init and /append_csv routes."""
     # Check for flashed messages
-    success_message = get_flashed_messages()
-    # Render the home.html template with the success message
-    return render_template('home.html', success_message=success_message)
+    """Route to render the home page with buttons to navigate to /init and /append_csv routes."""
+    success_message = get_flashed_messages(category_filter=["success"])
+    fail_message = get_flashed_messages(category_filter=["fail"])
+
+    return render_template('home.html', success_message=success_message, fail_message=fail_message)
 
 @app.route('/init', methods=['GET'])
 def init():
@@ -707,13 +708,18 @@ def init():
         push_data_to_dvc(GITHUB_CLONED_DIR, DVC_REMOTE_DB)
 
         # Flash a success message and redirect to the home page
-        flash('Successfully initialized the app, downloaded file as the target CSV file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.')
+        flash('Successfully initialized the app, downloaded file as the target CSV file, added data to DVC, committed changes to GitHub, and pushed data to remote DVC repository.', 'success')
         return redirect(url_for('home'))
 
     except Exception as e:
         # Handle and log exceptions
         logger.error(f'Failed to initialize the application: {e}')
-        return jsonify({'error': str(e)}), 400
+
+        # Flash the exception message
+        flash(f'Error: {str(e)}', 'fail')
+        
+        # Redirect to home page to show the message
+        return redirect(url_for('home'))
 
 @app.route('/append_csv', methods=['GET', 'POST'])
 @handle_dvc_errors
@@ -750,7 +756,11 @@ def append_csv():
         try:
             quantity_factor = float(quantity_factor)/100.0  # Convert to float and percentage
         except ValueError:
-            return jsonify({'error': 'Invalid quantity factor. Must be a number.'}), 400
+            # Flash the error message
+            flash(f'Error: Invalid quantity factor. Must be a number.', 'fail')
+            
+            # Redirect to home page to show the message
+            return redirect(url_for('home'))
         
         # Retrieve and convert quantity factor to float
         performance_factor = request.form.get('performance_factor')
@@ -761,7 +771,11 @@ def append_csv():
         try:
             performance_factor = float(performance_factor)/100.0  # Convert to float
         except ValueError:
-            return jsonify({'error': 'Invalid performance factor. Must be a number.'}), 400
+            # Flash the exception message
+            flash(f'Error:Invalid performance factor. Must be a number.', 'fail')
+            
+            # Redirect to home page to show the message
+            return redirect(url_for('home'))
 
         logger.info(f"Trigger type received: {trigger_type}, Quantity factor: {quantity_factor}, Performance factor: {performance_factor}")
         
@@ -877,7 +891,7 @@ def append_csv():
             )
 
         # Flash a success message
-        flash(flash_msg)
+        flash(flash_msg, 'success')
         
         # Clean up the temporary file after processing
         os.remove(source_csv_path)
