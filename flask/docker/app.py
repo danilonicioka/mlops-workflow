@@ -30,7 +30,7 @@ config = {
 #     "FILE_URL": os.environ.get('FILE_URL', 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'),
 #     "DVC_FILE_DIR": os.environ.get('DVC_FILE_DIR', 'data/external'),
 #     "DVC_FILE_NAME": os.environ.get('DVC_FILE_NAME', 'dataset.csv'),
-#     "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'tests'),
+#     "BRANCH_NAME": os.environ.get('BRANCH_NAME', 'dvc'),
 #     "BUCKET_NAME": os.environ.get('BUCKET_NAME', 'dvc-data'),
 #     "MINIO_URL": os.environ.get('MINIO_URL', 'localhost:9000'),
 #     "ACCESS_KEY": os.environ.get('ACCESS_KEY'),
@@ -59,7 +59,7 @@ CLONED_DIR = 'mlops-workflow'
 FILE_URL = 'https://raw.githubusercontent.com/razaulmustafa852/youtubegoes5g/main/Models/Stall-Windows%20-%20Stall-3s.csv'
 DVC_FILE_DIR = 'data/external'
 DVC_FILE_NAME = 'dataset.csv'
-BRANCH_NAME = 'tests'
+BRANCH_NAME = 'dvc'
 BUCKET_NAME = 'dvc-data'
 MINIO_URL = 'localhost:9000'
 ACCESS_KEY = os.environ.get('ACCESS_KEY')
@@ -318,7 +318,7 @@ def clone_repository_with_token(repo_url, cloned_dir, branch_name, github_userna
     # Construct the URL with the GitHub username and token
     url_with_token = f"https://{github_username}:{github_token}@{repo_url.split('//')[1]}"
     
-    # Clone the repository from the specified branch (in this case, 'tests')
+    # Clone the repository from the specified branch (in this case, 'dvc')
     repo = Repo.clone_from(url_with_token, cloned_dir, branch=branch_name)
     logger.info(f"Successfully cloned repository from {url_with_token} to {cloned_dir} on branch {branch_name}")
     return repo
@@ -356,8 +356,8 @@ def add_file_to_dvc(cloned_dir, dvc_file_path):
         logger.error(f'Failed to add file to DVC: {e.stderr}')
         raise Exception(f'Failed to add file to DVC: {e.stderr}')
 
-def commit_and_push_changes(repo, file_paths, commit_message):
-    """Commit changes to Git and push them to the 'tests' branch in GitHub."""
+def commit_and_push_changes(repo, file_paths, commit_message, branch_name):
+    """Commit changes to Git and push them to the 'dvc' branch in GitHub."""
     try:
         # Add specified file paths to the Git index
         repo.index.add(file_paths)
@@ -366,11 +366,11 @@ def commit_and_push_changes(repo, file_paths, commit_message):
         repo.index.commit(commit_message)
         logger.info(f'Successfully committed changes to Git for files: {file_paths}')
         
-        # Push changes to the 'tests' branch in GitHub
+        # Push changes to the 'dvc' branch in GitHub
         origin = repo.remotes.origin
-        origin.push(refspec='HEAD:refs/heads/tests')  # Push changes to the 'tests' branch
+        origin.push(refspec=f'HEAD:refs/heads/{branch_name}')  # Push changes to the 'dvc' branch
         
-        logger.info('Successfully pushed changes to GitHub on the "tests" branch')
+        logger.info(f'Successfully pushed changes to GitHub on the {branch_name} branch')
     except Exception as e:
         # Log the error and raise an exception
         logger.error(f'Failed to commit changes to Git or push to GitHub: {e}')
@@ -655,7 +655,7 @@ def init():
         # Define the target CSV file path as dataset.csv in the DVC file directory
         target_csv_path = os.path.join(CLONED_DIR, DVC_FILE_DIR, DVC_FILE_NAME)
 
-        # Clone the repository from the tests branch
+        # Clone the repository from the dvc branch
         repo = clone_repository_with_token(
             REPO_URL, CLONED_DIR, BRANCH_NAME,
             config['GITHUB_USERNAME'], config['GITHUB_TOKEN']
@@ -678,8 +678,8 @@ def init():
         # Add the file to DVC using the relative path
         add_file_to_dvc(CLONED_DIR, relative_target_csv_path)
         
-        # Commit changes to Git and push them to the 'tests' branch in GitHub using relative paths
-        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT)
+        # Commit changes to Git and push them to the 'dvc' branch in GitHub using relative paths
+        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITIGNORE_PATH], COMMIT_MSG_INIT, BRANCH_NAME)
 
         # Set up Minio client and create a bucket if needed
         client = setup_minio_client(MINIO_URL, ACCESS_KEY, SECRET_KEY, BUCKET_NAME)
@@ -785,7 +785,7 @@ def append_csv():
         push_data_to_dvc(CLONED_DIR, REMOTE_NAME)
         
         # Commit changes to Git and push to GitHub for the updated .dvc file
-        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND)
+        commit_and_push_changes(repo, [DVC_FILE_PATH_EXT], COMMIT_MSG_APPEND, BRANCH_NAME)
 
         # default is trigger_type == '0', not retraining
         exec_pipe = False
