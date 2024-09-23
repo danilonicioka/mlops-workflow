@@ -97,8 +97,8 @@ MINIO_MODEL_OBJECT_NAME = "model-store/youtubegoes5g/model.pt"
 
 # Triggers variables
 TRIGGER_TYPE = '0'
-QUANTITY_FACTOR = 10.0
-PERFORMANCE_FACTOR = 5.0
+QUANTITY_FACTOR = 0.1
+PERFORMANCE_FACTOR = 0.05
 # Temp dir and files to save accuracy for trigger 3
 TEMP_DIR = "tmp"
 TEMP_FILE_ACC_IN_LAST_RUN = "accuracy_in_last_run.txt"

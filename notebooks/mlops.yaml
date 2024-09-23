@@ -1,28 +1,28 @@
 # PIPELINE DEFINITION
 # Name: my-pipeline
 # Inputs:
-#    access_key: str
-#    branch_name: str
 #    bucket_name: str
-#    cloned_dir: str
 #    dvc_file_dir: str
 #    dvc_file_name: str
-#    epochs: int
+#    dvc_remote_db_url: str
+#    dvc_remote_name: str
+#    github_cloned_dir: str
+#    github_dvc_branch: str
 #    github_repo_url: str
 #    github_token: str
 #    github_username: str
+#    kserve_namespae: str
+#    kserve_svc_acc: str
 #    last_accuracy_object_name: str
-#    lr: float
+#    minio_access_key: str
+#    minio_model_object_name: str
+#    minio_secret_key: str
 #    minio_url: str
+#    model_epochs: int
+#    model_lr: float
 #    model_name: str
-#    model_object_name: str
-#    namespace: str
+#    model_print_frequency_per_n_epochs: int
 #    performance_factor: float
-#    print_frequency: int
-#    remote_name: str
-#    remote_url: str
-#    secret_key: str
-#    svc_acc: str
 #    tmp_dir: str
 #    tmp_file_last_acc: str
 #    trigger_type: str
@@ -36,15 +36,17 @@ components:
     executorLabel: exec-data-ingestion
     inputDefinitions:
       parameters:
-        access_key:
-          parameterType: STRING
-        branch_name:
-          parameterType: STRING
-        cloned_dir:
-          parameterType: STRING
         dvc_file_dir:
           parameterType: STRING
         dvc_file_name:
+          parameterType: STRING
+        dvc_remote_db_url:
+          parameterType: STRING
+        dvc_remote_name:
+          parameterType: STRING
+        github_cloned_dir:
+          parameterType: STRING
+        github_dvc_branch:
           parameterType: STRING
         github_repo_url:
           parameterType: STRING
@@ -52,13 +54,11 @@ components:
           parameterType: STRING
         github_username:
           parameterType: STRING
+        minio_access_key:
+          parameterType: STRING
+        minio_secret_key:
+          parameterType: STRING
         minio_url:
-          parameterType: STRING
-        remote_name:
-          parameterType: STRING
-        remote_url:
-          parameterType: STRING
-        secret_key:
           parameterType: STRING
     outputDefinitions:
       artifacts:
@@ -116,11 +116,11 @@ components:
       parameters:
         bucket_name:
           parameterType: STRING
+        kserve_namespae:
+          parameterType: STRING
+        kserve_svc_acc:
+          parameterType: STRING
         model_name:
-          parameterType: STRING
-        namespace:
-          parameterType: STRING
-        svc_acc:
           parameterType: STRING
     outputDefinitions:
       artifacts:
@@ -149,26 +149,26 @@ components:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
       parameters:
-        access_key:
-          parameterType: STRING
         bucket_name:
           parameterType: STRING
-        epochs:
-          parameterType: NUMBER_INTEGER
         last_accuracy_object_name:
           parameterType: STRING
-        lr:
-          parameterType: NUMBER_DOUBLE
+        minio_access_key:
+          parameterType: STRING
+        minio_model_object_name:
+          parameterType: STRING
+        minio_secret_key:
+          parameterType: STRING
         minio_url:
           parameterType: STRING
-        model_object_name:
-          parameterType: STRING
+        model_epochs:
+          parameterType: NUMBER_INTEGER
+        model_lr:
+          parameterType: NUMBER_DOUBLE
+        model_print_frequency_per_n_epochs:
+          parameterType: NUMBER_INTEGER
         performance_factor:
           parameterType: NUMBER_DOUBLE
-        print_frequency:
-          parameterType: NUMBER_INTEGER
-        secret_key:
-          parameterType: STRING
         tmp_dir:
           parameterType: STRING
         tmp_file_last_acc:
@@ -223,66 +223,69 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef data_ingestion(\n    github_repo_url: str,\n    cloned_dir: str,\n\
-          \    branch_name: str,\n    github_username: str,\n    github_token: str,\n\
-          \    remote_name: str,\n    remote_url: str,\n    minio_url: str,\n    access_key:\
-          \ str,\n    secret_key: str,\n    dvc_file_dir: str,\n    dvc_file_name:\
-          \ str,\n    dataset_artifact: Output[Dataset],\n    dataset_info: Output[Metrics]\n\
-          \    ):\n    from git import Repo\n    from subprocess import run, CalledProcessError\n\
-          \    import os\n    import pandas as pd\n\n    def clone_repository_with_token(github_repo_url,\
-          \ cloned_dir, branch_name, github_username, github_token):\n        \"\"\
-          \"Clone a Git repository using a GitHub token in the URL and specifying\
-          \ the branch.\"\"\"\n        try:\n            # Construct the URL with\
-          \ the GitHub username and token\n            url_with_token = f\"https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
+          \ *\n\ndef data_ingestion(\n    github_repo_url: str,\n    github_cloned_dir:\
+          \ str,\n    github_dvc_branch: str,\n    github_username: str,\n    github_token:\
+          \ str,\n    dvc_remote_name: str,\n    dvc_remote_db_url: str,\n    minio_url:\
+          \ str,\n    minio_access_key: str,\n    minio_secret_key: str,\n    dvc_file_dir:\
+          \ str,\n    dvc_file_name: str,\n    dataset_artifact: Output[Dataset],\n\
+          \    dataset_info: Output[Metrics]\n    ):\n    from git import Repo\n \
+          \   from subprocess import run, CalledProcessError\n    import os\n    import\
+          \ pandas as pd\n\n    def clone_repository_with_token(github_repo_url, github_cloned_dir,\
+          \ github_dvc_branch, github_username, github_token):\n        \"\"\"Clone\
+          \ a Git repository using a GitHub token in the URL and specifying the branch.\"\
+          \"\"\n        try:\n            # Construct the URL with the GitHub username\
+          \ and token\n            url_with_token = f\"https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
           \n\n            # Clone the repository from the specified branch\n     \
-          \       repo = Repo.clone_from(url_with_token, cloned_dir, branch=branch_name)\n\
+          \       repo = Repo.clone_from(url_with_token, github_cloned_dir, branch=github_dvc_branch)\n\
           \            return \"Repository cloned successfully\"\n        except Exception\
           \ as e:\n            return f\"Error occurred during repository cloning:\
-          \ {e}\"\n\n    def configure_dvc_remote(cloned_dir, remote_name, remote_url,\
-          \ minio_url, access_key, secret_key):\n        http_minio = f'http://{minio_url}'\n\
-          \        \"\"\"Configure the Minio bucket as the DVC remote repository using\
-          \ the `dvc remote` commands.\"\"\"\n        try:\n            # Add the\
-          \ remote\n            run(\n                ['dvc', 'remote', 'add', '-d',\
-          \ remote_name, remote_url],\n                cwd=cloned_dir,\n         \
+          \ {e}\"\n\n    def configure_dvc_remote(github_cloned_dir, dvc_remote_name,\
+          \ dvc_remote_db_url, minio_url, minio_access_key, minio_secret_key):\n \
+          \       http_minio = f'http://{minio_url}'\n        \"\"\"Configure the\
+          \ Minio bucket as the DVC remote repository using the `dvc remote` commands.\"\
+          \"\"\n        try:\n            # Add the remote\n            run(\n   \
+          \             ['dvc', 'remote', 'add', '-d', dvc_remote_name, dvc_remote_db_url],\n\
+          \                cwd=github_cloned_dir,\n                capture_output=True,\n\
+          \                text=True,\n                check=True\n            )\n\
+          \n            # Configure the endpoint URL\n            run(\n         \
+          \       ['dvc', 'remote', 'modify', dvc_remote_name, 'endpointurl', http_minio],\n\
+          \                cwd=github_cloned_dir,\n                capture_output=True,\n\
+          \                text=True,\n                check=True\n            )\n\
+          \n            # Configure access key ID\n            run(\n            \
+          \    ['dvc', 'remote', 'modify', dvc_remote_name, 'access_key_id', minio_access_key],\n\
+          \                cwd=github_cloned_dir,\n                capture_output=True,\n\
+          \                text=True,\n                check=True\n            )\n\
+          \n            # Configure secret access key\n            run(\n        \
+          \        ['dvc', 'remote', 'modify', dvc_remote_name, 'secret_access_key',\
+          \ minio_secret_key],\n                cwd=github_cloned_dir,\n         \
           \       capture_output=True,\n                text=True,\n             \
-          \   check=True\n            )\n\n            # Configure the endpoint URL\n\
-          \            run(\n                ['dvc', 'remote', 'modify', remote_name,\
-          \ 'endpointurl', http_minio],\n                cwd=cloned_dir,\n       \
-          \         capture_output=True,\n                text=True,\n           \
-          \     check=True\n            )\n\n            # Configure access key ID\n\
-          \            run(\n                ['dvc', 'remote', 'modify', remote_name,\
-          \ 'access_key_id', access_key],\n                cwd=cloned_dir,\n     \
-          \           capture_output=True,\n                text=True,\n         \
-          \       check=True\n            )\n\n            # Configure secret access\
-          \ key\n            run(\n                ['dvc', 'remote', 'modify', remote_name,\
-          \ 'secret_access_key', secret_key],\n                cwd=cloned_dir,\n \
-          \               capture_output=True,\n                text=True,\n     \
-          \           check=True\n            )\n\n            return f'Successfully\
-          \ configured Minio bucket as DVC remote repository: {remote_name}'\n   \
-          \     except CalledProcessError as e:\n            # Log and raise any errors\n\
-          \            return f'Failed to configure DVC remote: {e.stderr}'\n\n  \
-          \  def perform_dvc_pull(cloned_dir, remote_name):\n        \"\"\"Perform\
-          \ a DVC pull to synchronize local data with the remote repository.\"\"\"\
-          \n        try:\n            # Run the `dvc pull` command\n            result\
-          \ = run(['dvc', 'pull', '-r', remote_name], cwd=cloned_dir, capture_output=True,\
-          \ text=True)\n\n            # Check if the command executed successfully\n\
-          \            if result.returncode != 0:\n                # Log and raise\
-          \ an error if the command failed\n                error_message = f\"dvc\
-          \ pull failed with error: {result.stderr}\"\n                raise Exception(error_message)\n\
-          \n            # Log successful operation\n            return \"Successfully\
-          \ pulled data from remote DVC repository\"\n\n        except Exception as\
-          \ e:\n            # Log and handle the error\n            return f\"Error\
-          \ occurred during dvc pull: {e}\"\n\n    # Call the functions\n    clone_result\
-          \ = clone_repository_with_token(github_repo_url, cloned_dir, branch_name,\
-          \ github_username, github_token)\n    configure_result = configure_dvc_remote(cloned_dir,\
-          \ remote_name, remote_url, minio_url, access_key, secret_key)\n    dvc_pull_result\
-          \ = perform_dvc_pull(cloned_dir, remote_name)\n\n    # Save dataset with\
-          \ pandas in Dataset artifact\n    pulled_dataset_path = os.path.join(cloned_dir,\
-          \ dvc_file_dir, dvc_file_name)\n    tmp_dataset_path = \"/tmp/\" + dvc_file_name\n\
-          \    dataset = pd.read_csv(pulled_dataset_path)\n    dataset.to_pickle(tmp_dataset_path)\n\
-          \    os.rename(tmp_dataset_path, dataset_artifact.path)\n\n    # save dataset\
-          \ info to see on kubeflow graph\n    dataset_info.log_metric(\"Dataset size\"\
-          , dataset.shape[0])\n\n"
+          \   check=True\n            )\n\n            return f'Successfully configured\
+          \ Minio bucket as DVC remote repository: {dvc_remote_name}'\n        except\
+          \ CalledProcessError as e:\n            # Log and raise any errors\n   \
+          \         return f'Failed to configure DVC remote: {e.stderr}'\n\n    def\
+          \ perform_dvc_pull(github_cloned_dir, dvc_remote_name):\n        \"\"\"\
+          Perform a DVC pull to synchronize local data with the remote repository.\"\
+          \"\"\n        try:\n            # Run the `dvc pull` command\n         \
+          \   result = run(['dvc', 'pull', '-r', dvc_remote_name], cwd=github_cloned_dir,\
+          \ capture_output=True, text=True)\n\n            # Check if the command\
+          \ executed successfully\n            if result.returncode != 0:\n      \
+          \          # Log and raise an error if the command failed\n            \
+          \    error_message = f\"dvc pull failed with error: {result.stderr}\"\n\
+          \                raise Exception(error_message)\n\n            # Log successful\
+          \ operation\n            return \"Successfully pulled data from remote DVC\
+          \ repository\"\n\n        except Exception as e:\n            # Log and\
+          \ handle the error\n            return f\"Error occurred during dvc pull:\
+          \ {e}\"\n\n    # Call the functions\n    clone_result = clone_repository_with_token(github_repo_url,\
+          \ github_cloned_dir, github_dvc_branch, github_username, github_token)\n\
+          \    configure_result = configure_dvc_remote(github_cloned_dir, dvc_remote_name,\
+          \ dvc_remote_db_url, minio_url, minio_access_key, minio_secret_key)\n  \
+          \  dvc_pull_result = perform_dvc_pull(github_cloned_dir, dvc_remote_name)\n\
+          \n    # Save dataset with pandas in Dataset artifact\n    pulled_dataset_path\
+          \ = os.path.join(github_cloned_dir, dvc_file_dir, dvc_file_name)\n    tmp_dataset_path\
+          \ = \"/tmp/\" + dvc_file_name\n    dataset = pd.read_csv(pulled_dataset_path)\n\
+          \    dataset.to_pickle(tmp_dataset_path)\n    os.rename(tmp_dataset_path,\
+          \ dataset_artifact.path)\n\n    # save dataset info to see on kubeflow graph\n\
+          \    dataset_info.log_metric(\"Dataset size\", dataset.shape[0])\n\n"
         image: python:3.11.9
     exec-data-preparation:
       container:
@@ -376,33 +379,33 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef model_serving(\n    up_model_cond: Input[Artifact],\n    cond_info:\
-          \ Output[Metrics],\n    bucket_name: str,\n    model_name: str,\n    namespace:\
-          \ str,\n    svc_acc: str\n):\n    # Create kserve instance\n    from kubernetes\
-          \ import client \n    from kserve import KServeClient, constants, V1beta1InferenceService,\
-          \ V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TorchServeSpec\n\
-          \    from datetime import datetime\n    import time\n\n    # exec if a new\
-          \ model was uploaded\n    with open(up_model_cond.path) as f:\n        up_model\
-          \ = f.read()\n\n    if up_model == '1':\n        cond_info.log_metric(\"\
-          Up model\", up_model)\n\n        #Inference server config\n        now =\
-          \ datetime.now()\n        kserve_version='v1beta1'\n        api_version\
-          \ = constants.KSERVE_GROUP + '/' + kserve_version\n\n        # with open(model_uri.path)\
-          \ as f:\n        #     uri = f.read()\n        uri = f's3://{bucket_name}'\n\
-          \n        isvc = V1beta1InferenceService(api_version=api_version,\n    \
-          \                                   kind=constants.KSERVE_KIND,\n      \
-          \                                 metadata=client.V1ObjectMeta(\n      \
-          \                                     name=model_name, namespace=namespace,\
+          \ Output[Metrics],\n    bucket_name: str,\n    model_name: str,\n    kserve_namespae:\
+          \ str,\n    kserve_svc_acc: str\n):\n    # Create kserve instance\n    from\
+          \ kubernetes import client \n    from kserve import KServeClient, constants,\
+          \ V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
+          \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
+          \n    # exec if a new model was uploaded\n    with open(up_model_cond.path)\
+          \ as f:\n        up_model = f.read()\n\n    if up_model == '1':\n      \
+          \  cond_info.log_metric(\"Up model\", up_model)\n\n        #Inference server\
+          \ config\n        now = datetime.now()\n        kserve_version='v1beta1'\n\
+          \        api_version = constants.KSERVE_GROUP + '/' + kserve_version\n\n\
+          \        # with open(model_uri.path) as f:\n        #     uri = f.read()\n\
+          \        uri = f's3://{bucket_name}'\n\n        isvc = V1beta1InferenceService(api_version=api_version,\n\
+          \                                       kind=constants.KSERVE_KIND,\n  \
+          \                                     metadata=client.V1ObjectMeta(\n  \
+          \                                         name=model_name, namespace=kserve_namespae,\
           \ annotations={'sidecar.istio.io/inject':'false'}),\n                  \
           \                     spec=V1beta1InferenceServiceSpec(\n              \
           \                         predictor=V1beta1PredictorSpec(\n            \
-          \                               service_account_name=svc_acc,\n        \
-          \                                   pytorch=(V1beta1TorchServeSpec(\n  \
-          \                                             storage_uri=uri))))\n    \
-          \    )\n\n        KServe = KServeClient()\n\n        #replace old inference\
+          \                               service_account_name=kserve_svc_acc,\n \
+          \                                          pytorch=(V1beta1TorchServeSpec(\n\
+          \                                               storage_uri=uri))))\n  \
+          \      )\n\n        KServe = KServeClient()\n\n        #replace old inference\
           \ service with a new one\n        try:\n            KServe.delete(name=model_name,\
-          \ namespace=namespace)\n            print(\"Old model deleted\")\n     \
-          \   except:\n            print(\"Couldn't delete old model\")\n        time.sleep(10)\n\
-          \n        KServe.create(isvc)\n    else:\n        cond_info.log_metric(\"\
-          Up model\", '0')\n\n"
+          \ namespace=kserve_namespae)\n            print(\"Old model deleted\")\n\
+          \        except:\n            print(\"Couldn't delete old model\")\n   \
+          \     time.sleep(10)\n\n        KServe.create(isvc)\n    else:\n       \
+          \ cond_info.log_metric(\"Up model\", '0')\n\n"
         image: python:3.11.9
     exec-model-training:
       container:
@@ -435,32 +438,33 @@ deploymentSpec:
           \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
           \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
-          \ Output[Model],\n    up_model_cond: Output[Artifact],\n    lr: float,\n\
-          \    epochs: int,\n    print_frequency: int,\n    minio_url: str,\n    access_key:\
-          \ str,\n    secret_key: str,\n    bucket_name: str,\n    model_object_name:\
-          \ str,\n    trigger_type: str,\n    performance_factor: float,\n    last_accuracy_object_name:\
-          \ str,\n    tmp_dir: str,\n    tmp_file_last_acc: str\n    ):\n    import\
-          \ os\n    import torch\n    from torch import nn\n    from sklearn.metrics\
-          \ import accuracy_score, confusion_matrix, precision_score, recall_score,\
-          \ f1_score\n    from minio import Minio\n\n    # Build model with non-linear\
-          \ activation function\n    class InterruptionModel(nn.Module):\n       \
-          \ def __init__(self):\n            super().__init__()\n            self.layer_1\
-          \ = nn.Linear(in_features=29, out_features=200)\n            self.layer_2\
-          \ = nn.Linear(in_features=200, out_features=100)\n            self.layer_3\
-          \ = nn.Linear(in_features=100, out_features=1)\n            self.relu =\
-          \ nn.ReLU() # <- add in ReLU activation function\n            # Can also\
-          \ put sigmoid in the model\n            # This would mean you don't need\
-          \ to use it on the predictions\n            # self.sigmoid = nn.Sigmoid()\n\
-          \n        def forward(self, x):\n            # Intersperse the ReLU activation\
-          \ function between layers\n            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
+          \ Output[Model],\n    up_model_cond: Output[Artifact],\n    model_lr: float,\n\
+          \    model_epochs: int,\n    model_print_frequency_per_n_epochs: int,\n\
+          \    minio_url: str,\n    minio_access_key: str,\n    minio_secret_key:\
+          \ str,\n    bucket_name: str,\n    minio_model_object_name: str,\n    trigger_type:\
+          \ str,\n    performance_factor: float,\n    last_accuracy_object_name: str,\n\
+          \    tmp_dir: str,\n    tmp_file_last_acc: str\n    ):\n    import os\n\
+          \    import torch\n    from torch import nn\n    from sklearn.metrics import\
+          \ accuracy_score, confusion_matrix, precision_score, recall_score, f1_score\n\
+          \    from minio import Minio\n\n    # Build model with non-linear activation\
+          \ function\n    class InterruptionModel(nn.Module):\n        def __init__(self):\n\
+          \            super().__init__()\n            self.layer_1 = nn.Linear(in_features=29,\
+          \ out_features=200)\n            self.layer_2 = nn.Linear(in_features=200,\
+          \ out_features=100)\n            self.layer_3 = nn.Linear(in_features=100,\
+          \ out_features=1)\n            self.relu = nn.ReLU() # <- add in ReLU activation\
+          \ function\n            # Can also put sigmoid in the model\n          \
+          \  # This would mean you don't need to use it on the predictions\n     \
+          \       # self.sigmoid = nn.Sigmoid()\n\n        def forward(self, x):\n\
+          \            # Intersperse the ReLU activation function between layers\n\
+          \            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))\n\
           \n    # Helper functions\n    def accuracy_fn(y_true, y_pred):\n       \
           \ correct = torch.eq(y_true, y_pred).sum().item() # torch.eq() calculates\
           \ where two tensors are equal\n        acc = (correct / len(y_pred)) * 100\n\
-          \        return acc\n\n    def minio_setup(minio_url, access_key, secret_key):\n\
-          \        # Initialize Minio client with just the base URL (without path)\n\
-          \        client = Minio(\n            minio_url,  # Ensure minio_url does\
-          \ not include a path, only the base URL (e.g., http://localhost:9000)\n\
-          \            access_key=access_key,\n            secret_key=secret_key,\n\
+          \        return acc\n\n    def minio_setup(minio_url, minio_access_key,\
+          \ minio_secret_key):\n        # Initialize Minio client with just the base\
+          \ URL (without path)\n        client = Minio(\n            minio_url,  #\
+          \ Ensure minio_url does not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \            access_key=minio_access_key,\n            secret_key=minio_secret_key,\n\
           \            secure=False  # Minio is using HTTP on localhost:9000\n   \
           \     )\n        return client\n\n    def upload_file(client, bucket_name,\
           \ object_name, filepath):\n        # Create the bucket if it does not exist\n\
@@ -510,13 +514,13 @@ deploymentSpec:
           \ filepath)\n\n    device = \"cuda\" if torch.cuda.is_available() else \"\
           cpu\"\n    model = InterruptionModel().to(device)\n\n    # Setup loss and\
           \ optimizer\n    loss_fn = nn.BCEWithLogitsLoss()\n    optimizer = torch.optim.Adam(model.parameters(),\
-          \ lr=lr)\n\n    # Fit the model\n    torch.manual_seed(42)\n    epochs =\
-          \ epochs\n\n    # Put all data on target device\n    X_train = torch.load(X_train_artifact.path)\n\
+          \ lr=model_lr)\n\n    # Fit the model\n    torch.manual_seed(42)\n\n   \
+          \ # Put all data on target device\n    X_train = torch.load(X_train_artifact.path)\n\
           \    X_test = torch.load(X_test_artifact.path)\n    y_train = torch.load(y_train_artifact.path)\n\
           \    y_test = torch.load(y_test_artifact.path)\n    X_train, y_train = X_train.to(device),\
           \ y_train.to(device)\n    X_test, y_test = X_test.to(device), y_test.to(device)\n\
-          \n    for epoch in range(epochs):\n        # 1. Forward pass\n        y_logits\
-          \ = model(X_train).squeeze()\n\n        y_pred = torch.round(torch.sigmoid(y_logits))\
+          \n    for epoch in range(model_epochs):\n        # 1. Forward pass\n   \
+          \     y_logits = model(X_train).squeeze()\n\n        y_pred = torch.round(torch.sigmoid(y_logits))\
           \ # logits -> prediction probabilities -> prediction labels\n\n        #\
           \ 2. Calculate loss and accuracy\n        loss = loss_fn(y_logits, y_train)\
           \ # BCEWithLogitsLoss calculates loss using logits\n        acc = accuracy_fn(y_true=y_train,\n\
@@ -530,10 +534,10 @@ deploymentSpec:
           \ loss and accuracy\n            test_loss = loss_fn(test_logits, y_test)\n\
           \            test_acc = accuracy_fn(y_true=y_test,\n                   \
           \             y_pred=test_pred)\n\n\n        # Print out what's happening\n\
-          \        if epoch % print_frequency == 0:\n            print(f\"Epoch: {epoch}\
-          \ | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test Loss: {test_loss:.5f},\
-          \ Test Accuracy: {test_acc:.2f}%\")\n\n    model.eval()\n    with torch.no_grad():\n\
-          \        y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
+          \        if epoch % model_print_frequency_per_n_epochs == 0:\n         \
+          \   print(f\"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test\
+          \ Loss: {test_loss:.5f}, Test Accuracy: {test_acc:.2f}%\")\n\n    model.eval()\n\
+          \    with torch.no_grad():\n        y_preds = torch.round(torch.sigmoid(model(X_test))).squeeze()\n\
           \n    if device == \"cuda\":\n        predictions = y_preds.cpu().numpy()\
           \ #if it is cuda, then this, otherwise y_pred.numpy()\n        true_labels\
           \ = y_test.cpu().numpy()\n    else:\n        predictions = y_preds.numpy()\n\
@@ -558,19 +562,19 @@ deploymentSpec:
           \ cmatrix)\n\n    # Save model\n    model_path = \"/tmp/model.pt\"\n   \
           \ torch.save(model.state_dict(), model_path)\n    os.rename(model_path,\
           \ model_trained_artifact.path)\n\n    # Setup minio client to upload and\
-          \ read files\n    client = minio_setup(minio_url, access_key, secret_key)\n\
+          \ read files\n    client = minio_setup(minio_url, minio_access_key, minio_secret_key)\n\
           \n    previous_accuracy = get_accuracy_in_last_run(client, bucket_name,\
-          \ last_accuracy_object_name)\n\n    print(accuracy-previous_accuracy)\n\
-          \    metrics.log_metric(\"current-previous accuracy\", accuracy-previous_accuracy)\n\
-          \n    if trigger_type == '1' or trigger_type == '2':\n        up_model =\
-          \ True\n    elif trigger_type == '3':\n        if accuracy - previous_accuracy\
-          \ > performance_factor:\n            up_model = True\n            update_accuracy_in_last_run(client,\
+          \ last_accuracy_object_name)\n\n    #metrics.log_metric(\"current-previous\
+          \ accuracy\", accuracy-previous_accuracy)\n\n    if trigger_type == '1'\
+          \ or trigger_type == '2':\n        up_model = True\n    elif trigger_type\
+          \ == '3':\n        if accuracy - previous_accuracy > performance_factor:\n\
+          \            up_model = True\n            update_accuracy_in_last_run(client,\
           \ bucket_name, last_accuracy_object_name, accuracy, tmp_dir, tmp_file_last_acc)\n\
           \    else:\n        up_model = False\n        metrics.log_metric(\"up model\"\
           , '0')\n        with open(up_model_cond.path, 'w') as f:\n            f.write('0')\n\
           \n    if up_model:\n        metrics.log_metric(\"up model\", '1')\n    \
           \    with open(up_model_cond.path, 'w') as f:\n            f.write('1')\n\
-          \        upload_model_result = upload_file(client, bucket_name, model_object_name,\
+          \        upload_model_result = upload_file(client, bucket_name, minio_model_object_name,\
           \ model_trained_artifact.path)\n\n"
         image: python:3.11.9
 pipelineInfo:
@@ -603,30 +607,30 @@ root:
           name: comp-data-ingestion
         inputs:
           parameters:
-            access_key:
-              componentInputParameter: access_key
-            branch_name:
-              componentInputParameter: branch_name
-            cloned_dir:
-              componentInputParameter: cloned_dir
             dvc_file_dir:
               componentInputParameter: dvc_file_dir
             dvc_file_name:
               componentInputParameter: dvc_file_name
+            dvc_remote_db_url:
+              componentInputParameter: dvc_remote_db_url
+            dvc_remote_name:
+              componentInputParameter: dvc_remote_name
+            github_cloned_dir:
+              componentInputParameter: github_cloned_dir
+            github_dvc_branch:
+              componentInputParameter: github_dvc_branch
             github_repo_url:
               componentInputParameter: github_repo_url
             github_token:
               componentInputParameter: github_token
             github_username:
               componentInputParameter: github_username
+            minio_access_key:
+              componentInputParameter: minio_access_key
+            minio_secret_key:
+              componentInputParameter: minio_secret_key
             minio_url:
               componentInputParameter: minio_url
-            remote_name:
-              componentInputParameter: remote_name
-            remote_url:
-              componentInputParameter: remote_url
-            secret_key:
-              componentInputParameter: secret_key
         taskInfo:
           name: data-ingestion
       data-preparation:
@@ -660,12 +664,12 @@ root:
           parameters:
             bucket_name:
               componentInputParameter: bucket_name
+            kserve_namespae:
+              componentInputParameter: kserve_namespae
+            kserve_svc_acc:
+              componentInputParameter: kserve_svc_acc
             model_name:
               componentInputParameter: model_name
-            namespace:
-              componentInputParameter: namespace
-            svc_acc:
-              componentInputParameter: svc_acc
         taskInfo:
           name: model-serving
       model-training:
@@ -694,26 +698,26 @@ root:
                 outputArtifactKey: y_train_artifact
                 producerTask: data-preparation
           parameters:
-            access_key:
-              componentInputParameter: access_key
             bucket_name:
               componentInputParameter: bucket_name
-            epochs:
-              componentInputParameter: epochs
             last_accuracy_object_name:
               componentInputParameter: last_accuracy_object_name
-            lr:
-              componentInputParameter: lr
+            minio_access_key:
+              componentInputParameter: minio_access_key
+            minio_model_object_name:
+              componentInputParameter: minio_model_object_name
+            minio_secret_key:
+              componentInputParameter: minio_secret_key
             minio_url:
               componentInputParameter: minio_url
-            model_object_name:
-              componentInputParameter: model_object_name
+            model_epochs:
+              componentInputParameter: model_epochs
+            model_lr:
+              componentInputParameter: model_lr
+            model_print_frequency_per_n_epochs:
+              componentInputParameter: model_print_frequency_per_n_epochs
             performance_factor:
               componentInputParameter: performance_factor
-            print_frequency:
-              componentInputParameter: print_frequency
-            secret_key:
-              componentInputParameter: secret_key
             tmp_dir:
               componentInputParameter: tmp_dir
             tmp_file_last_acc:
@@ -724,50 +728,50 @@ root:
           name: model-training
   inputDefinitions:
     parameters:
-      access_key:
-        parameterType: STRING
-      branch_name:
-        parameterType: STRING
       bucket_name:
-        parameterType: STRING
-      cloned_dir:
         parameterType: STRING
       dvc_file_dir:
         parameterType: STRING
       dvc_file_name:
         parameterType: STRING
-      epochs:
-        parameterType: NUMBER_INTEGER
+      dvc_remote_db_url:
+        parameterType: STRING
+      dvc_remote_name:
+        parameterType: STRING
+      github_cloned_dir:
+        parameterType: STRING
+      github_dvc_branch:
+        parameterType: STRING
       github_repo_url:
         parameterType: STRING
       github_token:
         parameterType: STRING
       github_username:
         parameterType: STRING
+      kserve_namespae:
+        parameterType: STRING
+      kserve_svc_acc:
+        parameterType: STRING
       last_accuracy_object_name:
         parameterType: STRING
-      lr:
-        parameterType: NUMBER_DOUBLE
+      minio_access_key:
+        parameterType: STRING
+      minio_model_object_name:
+        parameterType: STRING
+      minio_secret_key:
+        parameterType: STRING
       minio_url:
         parameterType: STRING
+      model_epochs:
+        parameterType: NUMBER_INTEGER
+      model_lr:
+        parameterType: NUMBER_DOUBLE
       model_name:
         parameterType: STRING
-      model_object_name:
-        parameterType: STRING
-      namespace:
-        parameterType: STRING
+      model_print_frequency_per_n_epochs:
+        parameterType: NUMBER_INTEGER
       performance_factor:
         parameterType: NUMBER_DOUBLE
-      print_frequency:
-        parameterType: NUMBER_INTEGER
-      remote_name:
-        parameterType: STRING
-      remote_url:
-        parameterType: STRING
-      secret_key:
-        parameterType: STRING
-      svc_acc:
-        parameterType: STRING
       tmp_dir:
         parameterType: STRING
       tmp_file_last_acc:
