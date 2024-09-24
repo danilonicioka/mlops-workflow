@@ -31,6 +31,7 @@
 #    model-serving-cond_info: system.Metrics
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
+#    model-training-up_model_info: system.Metrics
 components:
   comp-data-ingestion:
     executorLabel: exec-data-ingestion
@@ -192,6 +193,10 @@ components:
         up_model_cond:
           artifactType:
             schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        up_model_info:
+          artifactType:
+            schemaTitle: system.Metrics
             schemaVersion: 0.0.1
 deploymentSpec:
   executors:
@@ -437,10 +442,10 @@ deploymentSpec:
           \ *\n\ndef model_training(\n    X_train_artifact: Input[Dataset], \n   \
           \ X_test_artifact: Input[Dataset],\n    y_train_artifact: Input[Dataset],\n\
           \    y_test_artifact: Input[Dataset],\n    metrics: Output[Metrics], \n\
-          \    classification_metrics: Output[ClassificationMetrics], \n    model_trained_artifact:\
-          \ Output[Model],\n    up_model_cond: Output[Artifact],\n    model_lr: float,\n\
-          \    model_epochs: int,\n    model_print_frequency_per_n_epochs: int,\n\
-          \    minio_url: str,\n    minio_access_key: str,\n    minio_secret_key:\
+          \    up_model_info: Output[Metrics],\n    classification_metrics: Output[ClassificationMetrics],\
+          \ \n    model_trained_artifact: Output[Model],\n    up_model_cond: Output[Artifact],\n\
+          \    model_lr: float,\n    model_epochs: int,\n    model_print_frequency_per_n_epochs:\
+          \ int,\n    minio_url: str,\n    minio_access_key: str,\n    minio_secret_key:\
           \ str,\n    bucket_name: str,\n    minio_model_object_name: str,\n    trigger_type:\
           \ str,\n    performance_factor: float,\n    last_accuracy_object_name: str,\n\
           \    tmp_dir: str,\n    tmp_file_last_acc: str\n    ):\n    import os\n\
@@ -571,12 +576,12 @@ deploymentSpec:
           \    if accuracy - previous_accuracy > performance_factor:\n           \
           \ up_model = True\n            update_accuracy_in_last_run(client, bucket_name,\
           \ last_accuracy_object_name, accuracy, tmp_dir, tmp_file_last_acc)\n   \
-          \ else:\n        up_model = False\n        metrics.log_metric(\"up model\"\
-          , \"No\")\n        with open(up_model_cond.path, 'w') as f:\n          \
-          \  f.write('0')\n\n    if up_model:\n        metrics.log_metric(\"up model\"\
-          , \"Yes\")\n        with open(up_model_cond.path, 'w') as f:\n         \
-          \   f.write('1')\n        upload_model_result = upload_file(client, bucket_name,\
-          \ minio_model_object_name, model_trained_artifact.path)\n\n"
+          \ else:\n        up_model = False\n        up_model_info.log_metric(\"up\
+          \ model\", \"No\")\n        with open(up_model_cond.path, 'w') as f:\n \
+          \           f.write('0')\n\n    if up_model:\n        up_model_info.log_metric(\"\
+          up model\", \"Yes\")\n        with open(up_model_cond.path, 'w') as f:\n\
+          \            f.write('1')\n        upload_model_result = upload_file(client,\
+          \ bucket_name, minio_model_object_name, model_trained_artifact.path)\n\n"
         image: python:3.11.9
 pipelineInfo:
   name: my-pipeline
@@ -599,6 +604,10 @@ root:
         model-training-metrics:
           artifactSelectors:
           - outputArtifactKey: metrics
+            producerSubtask: model-training
+        model-training-up_model_info:
+          artifactSelectors:
+          - outputArtifactKey: up_model_info
             producerSubtask: model-training
     tasks:
       data-ingestion:
@@ -794,6 +803,10 @@ root:
           schemaTitle: system.ClassificationMetrics
           schemaVersion: 0.0.1
       model-training-metrics:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+      model-training-up_model_info:
         artifactType:
           schemaTitle: system.Metrics
           schemaVersion: 0.0.1
