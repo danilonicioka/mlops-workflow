@@ -54,15 +54,14 @@ config = {
 }
 
 # Kubeflow variables
-KUBEFLOW_PIPELINE_NAME = "mlops"
+#KUBEFLOW_PIPELINE_NAME = "mlops"
 KUBEFLOW_HOST_URL = 'http://localhost:8080'
-#KUBEFLOW_HOST_URL = "http://ml-pipeline.kubeflow:8888" 
-KUBEFLOW_PIPELINE_ID="7451916e-eee8-4c14-ad5f-8dee5aa61e3b"
+#KUBEFLOW_HOST_URL = "http://ml-pipeline.kubeflow:8888"
 KUBEFLOW_TOKEN = os.environ.get('KUBEFLOW_TOKEN'),  # Token for Kubeflow Pipelines authentication
 # with open(os.environ['KF_PIPELINES_SA_TOKEN_PATH'], "r") as f:
 #     KUBEFLOW_TOKEN = f.read()
-KUBEFLOW_PIPELINE_ID = '9f242c9c-412f-434f-b20b-566fe36a85bd'
-KUBEFLOW_VERSION_ID = 'fed75a83-15a7-40fb-83c7-cc163e2027d5'
+KUBEFLOW_PIPELINE_ID = 'd31e6f57-61ef-4fb8-ade2-a04abff85f1f'
+KUBEFLOW_VERSION_ID = 'f2c184dc-0023-46d1-bcfd-0b17adf5e883'
 KUBEFLOW_SVC_ACC = 'default-editor'
 
 # Dex variables
