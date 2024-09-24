@@ -1,0 +1,16 @@
+[
+  {
+    "model-name": "youtubegoes5g",
+    "version": "1.0",
+    "model-file": "model.py",
+    "serialized-file": "model_trained_artifact.pt",
+    "extra-files": "",
+    "handler": "base_handler",
+    "min-workers" : 1,
+    "max-workers": 5,
+    "batch-size": 1,
+    "max-batch-delay": 10,
+    "response-timeout": 120,
+    "requirements": ""
+  }
+]
