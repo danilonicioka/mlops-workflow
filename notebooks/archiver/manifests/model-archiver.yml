@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: margen-pod
+  namespace: kubeflow-user-example-com
 spec:
   volumes:
     - name: model-pv-claim
@@ -16,7 +17,7 @@ spec:
         mountPath: /data
   containers:
     - name: margen-container
-      image: {username}/margen:v1.2
+      image: danilonicioka/margen:v1.2
       volumeMounts:
         - mountPath: "/home/model-server"
           name: model-pv-claim
