@@ -17,7 +17,7 @@ spec:
         mountPath: /data
   containers:
     - name: margen-container
-      image: danilonicioka/margen:v1.2
+      image: danilonicioka/margen:latest
       volumeMounts:
         - mountPath: "/home/model-server"
           name: model-pv-claim
