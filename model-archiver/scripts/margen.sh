@@ -1,0 +1,1 @@
+torch-model-archiver -f --model-name youtubegoes5g --version 1.0 --model-file /home/model-server/model-store/youtubegoes5g/model.py --serialized-file /home/model-server/model-store/youtubegoes5g/model_trained_artifact.pt --handler base_handler
