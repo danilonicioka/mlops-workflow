@@ -7,6 +7,7 @@
 #    github_repo_url: str
 #    github_token: str
 #    github_username: str
+#    k8s_api_token: str
 #    kserve_namespace: str
 #    minio_access_key: str
 #    minio_secret_key: str
@@ -27,6 +28,8 @@ components:
         github_token:
           parameterType: STRING
         github_username:
+          parameterType: STRING
+        k8s_api_token:
           parameterType: STRING
         kserve_namespace:
           parameterType: STRING
@@ -68,25 +71,29 @@ deploymentSpec:
           \ *\n\ndef mar_gen(\n    github_repo_url: str,\n    github_cloned_dir: str,\n\
           \    github_main_branch: str,\n    github_username: str,\n    github_token:\
           \ str,\n    minio_url: str,\n    minio_access_key: str,\n    minio_secret_key:\
-          \ str,\n    kserve_namespace: str,\n    bucket_name: str\n):\n    from kubernetes\
-          \ import client, config, utils, watch\n    import time\n    from kubernetes.client\
-          \ import Configuration\n    from kubernetes.client.api import core_v1_api\n\
-          \    from kubernetes.client.rest import ApiException\n    from kubernetes.stream\
-          \ import stream\n    import io\n    import tarfile\n    import pathlib\n\
-          \    import os\n    from minio import Minio\n\n    def clone_repository_with_token(github_repo_url,\
-          \ github_cloned_dir, github_branch, github_username, github_token):\n  \
-          \      \"\"\"Clone a Git repository using a GitHub token in the URL and\
-          \ specifying the branch.\"\"\"\n        try:\n            # Construct the\
-          \ URL with the GitHub username and token\n            url_with_token = f\"\
-          https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
+          \ str,\n    kserve_namespace: str,\n    bucket_name: str,\n    k8s_api_token:\
+          \ str\n):\n    from kubernetes import client, config, utils, watch\n   \
+          \ import time\n    from kubernetes.client import Configuration\n    from\
+          \ kubernetes.client.api import core_v1_api\n    from kubernetes.client.rest\
+          \ import ApiException\n    from kubernetes.stream import stream\n    import\
+          \ io\n    import tarfile\n    import pathlib\n    import os\n    from minio\
+          \ import Minio\n\n    def clone_repository_with_token(github_repo_url, github_cloned_dir,\
+          \ github_branch, github_username, github_token):\n        \"\"\"Clone a\
+          \ Git repository using a GitHub token in the URL and specifying the branch.\"\
+          \"\"\n        try:\n            # Construct the URL with the GitHub username\
+          \ and token\n            url_with_token = f\"https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
           \n\n            # Clone the repository from the specified branch\n     \
           \       repo = Repo.clone_from(url_with_token, github_cloned_dir, branch=github_branch)\n\
           \            return \"Repository cloned successfully\"\n        except Exception\
           \ as e:\n            return f\"Error occurred during repository cloning:\
           \ {e}\"\n\n    clone_result = clone_repository_with_token(github_repo_url,\
           \ github_cloned_dir, github_main_branch, github_username, github_token)\n\
-          \n    # config.load_kube_config(\"kubeconfig\")\n    config.load_kube_config()\n\
-          \    k8s_client = client.ApiClient()\n    model_store_yaml_dir = f'{github_cloned_dir}/model-archiver/model-store-manifests/'\n\
+          \n    configuration = kubernetes.client.Configuration()\n    configuration.api_key['authorization']\
+          \ = k8s_api_token\n    # Uncomment below to setup prefix (e.g. Bearer) for\
+          \ API key, if needed\n    configuration.api_key_prefix['authorization']\
+          \ = 'Bearer'\n\n    configuration.host = \"http://10.15.201.1\"\n\n    #\
+          \ config.load_kube_config(\"kubeconfig\")\n    k8s_client = client.ApiClient(configuration)\n\
+          \    model_store_yaml_dir = f'{github_cloned_dir}/model-archiver/model-store-manifests/'\n\
           \n    try:\n        pv_result = utils.create_from_directory(k8s_client,\
           \ model_store_yaml_dir, verbose=True)\n    except Exception as e:\n    \
           \    print(e)\n\n    def wait_pod(core_v1, namespace, label, pod_name, time_in_sec):\n\
@@ -276,6 +283,8 @@ root:
               componentInputParameter: github_token
             github_username:
               componentInputParameter: github_username
+            k8s_api_token:
+              componentInputParameter: k8s_api_token
             kserve_namespace:
               componentInputParameter: kserve_namespace
             minio_access_key:
@@ -299,6 +308,8 @@ root:
       github_token:
         parameterType: STRING
       github_username:
+        parameterType: STRING
+      k8s_api_token:
         parameterType: STRING
       kserve_namespace:
         parameterType: STRING
