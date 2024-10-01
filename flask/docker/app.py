@@ -63,6 +63,7 @@ KUBEFLOW_TOKEN = os.environ.get('KUBEFLOW_TOKEN'),  # Token for Kubeflow Pipelin
 KUBEFLOW_PIPELINE_ID = 'd31e6f57-61ef-4fb8-ade2-a04abff85f1f'
 KUBEFLOW_VERSION_ID = 'f2c184dc-0023-46d1-bcfd-0b17adf5e883'
 KUBEFLOW_SVC_ACC = 'default-editor'
+K8S_API_TOKEN = os.environ.get('K8S_API_TOKEN')
 
 # Dex variables
 DEX_USER = os.environ.get('DEX_USER')
@@ -872,7 +873,8 @@ def append_csv():
             'performance_factor': performance_factor,
             'last_accuracy_object_name': LAST_ACC_OBJECT_NAME,
             'tmp_dir': TEMP_DIR,
-            'tmp_file_last_acc': TEMP_FILE_ACC_IN_LAST_RUN
+            'tmp_file_last_acc': TEMP_FILE_ACC_IN_LAST_RUN,
+            'k8s_api_token': K8S_API_TOKEN
         }
 
         if exec_pipe:
