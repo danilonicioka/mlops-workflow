@@ -8,10 +8,12 @@
 #    dvc_remote_name: str
 #    github_cloned_dir: str
 #    github_dvc_branch: str
+#    github_main_branch: str
 #    github_repo_url: str
 #    github_token: str
 #    github_username: str
-#    kserve_namespae: str
+#    k8s_api_token: str
+#    kserve_namespace: str
 #    kserve_svc_acc: str
 #    last_accuracy_object_name: str
 #    minio_access_key: str
@@ -28,6 +30,7 @@
 #    trigger_type: str
 # Outputs:
 #    data-ingestion-dataset_info: system.Metrics
+#    mar-gen-mar_gen_info: system.Metrics
 #    model-serving-cond_info: system.Metrics
 #    model-training-classification_metrics: system.ClassificationMetrics
 #    model-training-metrics: system.Metrics
@@ -106,8 +109,8 @@ components:
           artifactType:
             schemaTitle: system.Dataset
             schemaVersion: 0.0.1
-  comp-model-serving:
-    executorLabel: exec-model-serving
+  comp-mar-gen:
+    executorLabel: exec-mar-gen
     inputDefinitions:
       artifacts:
         up_model_cond:
@@ -117,7 +120,48 @@ components:
       parameters:
         bucket_name:
           parameterType: STRING
-        kserve_namespae:
+        github_cloned_dir:
+          parameterType: STRING
+        github_main_branch:
+          parameterType: STRING
+        github_repo_url:
+          parameterType: STRING
+        github_token:
+          parameterType: STRING
+        github_username:
+          parameterType: STRING
+        k8s_api_token:
+          parameterType: STRING
+        kserve_namespace:
+          parameterType: STRING
+        minio_access_key:
+          parameterType: STRING
+        minio_secret_key:
+          parameterType: STRING
+        minio_url:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        mar_gen_cond:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        mar_gen_info:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-model-serving:
+    executorLabel: exec-model-serving
+    inputDefinitions:
+      artifacts:
+        mar_gen_cond:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        bucket_name:
+          parameterType: STRING
+        kserve_namespace:
           parameterType: STRING
         kserve_svc_acc:
           parameterType: STRING
@@ -356,6 +400,305 @@ deploymentSpec:
           \n    torch.save(y_test, y_test_path)\n    os.rename(y_test_path, y_test_artifact.path)\n\
           \n"
         image: python:3.11.9
+    exec-mar-gen:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - mar_gen
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.7.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'gitpython'\
+          \ 'kubernetes==30.1.0' 'Minio==7.2.5' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef mar_gen(\n    up_model_cond: Input[Artifact],\n    mar_gen_cond:\
+          \ Output[Artifact],\n    mar_gen_info: Output[Metrics],\n    github_repo_url:\
+          \ str,\n    github_cloned_dir: str,\n    github_main_branch: str,\n    github_username:\
+          \ str,\n    github_token: str,\n    minio_url: str,\n    minio_access_key:\
+          \ str,\n    minio_secret_key: str,\n    kserve_namespace: str,\n    bucket_name:\
+          \ str,\n    k8s_api_token: str\n):\n    from kubernetes import client, config,\
+          \ utils, watch\n    import time\n    from kubernetes.client import Configuration\n\
+          \    from kubernetes.client.api import core_v1_api\n    from kubernetes.client.rest\
+          \ import ApiException\n    from kubernetes.stream import stream\n    import\
+          \ io\n    import tarfile\n    import pathlib\n    import os\n    from minio\
+          \ import Minio\n    from minio.error import S3Error\n    from git import\
+          \ Repo\n    from subprocess import run\n\n    # exec if a new model was\
+          \ uploaded\n    with open(up_model_cond.path) as f:\n        up_model =\
+          \ f.read()\n\n    if up_model == '1':\n        def clone_repository_with_token(github_repo_url,\
+          \ \n                                        github_cloned_dir, \n      \
+          \                                  github_branch, \n                   \
+          \                     github_username, \n                              \
+          \          github_token):\n            \"\"\"Clone a Git repository using\
+          \ a GitHub token in the URL and specifying the branch.\"\"\"\n         \
+          \   try:\n                # Construct the URL with the GitHub username and\
+          \ token\n                url_with_token = f\"https://{github_username}:{github_token}@{github_repo_url.split('//')[1]}\"\
+          \n\n                # Clone the repository from the specified branch\n \
+          \               repo = Repo.clone_from(url_with_token, github_cloned_dir,\
+          \ branch=github_branch)\n                return \"Repository cloned successfully\"\
+          \n            except Exception as e:\n                return f\"Error occurred\
+          \ during repository cloning: {e}\"\n\n        # github_repo_url = GITHUB_REPO_URL\n\
+          \        # github_cloned_dir = GITHUB_CLONED_DIR\n        # github_main_branch\
+          \ = GITHUB_MAIN_BRANCH\n        # github_username = GITHUB_USERNAME\n  \
+          \      # github_token = GITHUB_TOKEN\n\n        clone_result = clone_repository_with_token(github_repo_url,\
+          \ \n                                                   github_cloned_dir,\
+          \ \n                                                   github_main_branch,\
+          \ \n                                                   github_username,\
+          \ \n                                                   github_token)\n\n\
+          \        # config.load_kube_config(\"kubeconfig\")\n        config.load_incluster_config()\n\
+          \        k8s_client = client.ApiClient()\n        model_store_yaml_dir =\
+          \ f'{github_cloned_dir}/model-archiver/model-store-manifests/'\n\n     \
+          \   try:\n            pv_result = utils.create_from_directory(k8s_client,\
+          \ model_store_yaml_dir, verbose=True)\n        except Exception as e:\n\
+          \            print(e)\n\n        def wait_pod(core_v1, namespace, label,\
+          \ pod_name, time_in_sec):\n            w = watch.Watch()\n            for\
+          \ event in w.stream(func=core_v1.list_namespaced_pod,\n                \
+          \                      namespace=namespace,\n                          \
+          \            label_selector=label,\n                                   \
+          \   timeout_seconds=time_in_sec):\n                if event[\"object\"].status.phase\
+          \ == \"Running\":\n                    w.stop()\n                    end_time\
+          \ = time.time()\n                    print(f\"{pod_name} running \")\n \
+          \                   return\n                # event.type: ADDED, MODIFIED,\
+          \ DELETED\n                if event[\"type\"] == \"DELETED\":\n        \
+          \            # Pod was deleted while we were waiting for it to start.\n\
+          \                    print(f\"{pod_name} deleted before it started\")\n\
+          \                    w.stop()\n                    return\n\n        def\
+          \ exec_commands(api_instance, namespace, pod_name, pod_container_name, command):\n\
+          \            name = pod_name\n            resp = None\n            try:\n\
+          \                resp = api_instance.read_namespaced_pod(name=name,\n  \
+          \                                                      namespace=namespace)\n\
+          \            except ApiException as e:\n                if e.status != 404:\n\
+          \                    print(f\"Unknown error: {e}\")\n                  \
+          \  exit(1)\n\n            if not resp:\n                print(f\"Pod {name}\
+          \ does not exist.\")\n\n            # Calling exec and waiting for response\n\
+          \            exec_command = [\n                '/bin/sh',\n            \
+          \    '-c',\n                command]\n            # When calling a pod with\
+          \ multiple containers running the target container\n            # has to\
+          \ be specified with a keyword argument container=<name>.\n            resp\
+          \ = stream(api_instance.connect_get_namespaced_pod_exec,\n             \
+          \     name=pod_name,\n                  container=pod_container_name,\n\
+          \                  namespace=namespace,\n                  command=exec_command,\n\
+          \                  stderr=True, stdin=False,\n                  stdout=True,\
+          \ tty=False)\n            print(\"Response: \" + resp)\n\n        try:\n\
+          \            c = Configuration().get_default_copy()\n        except AttributeError:\n\
+          \            c = Configuration()\n            c.assert_hostname = False\n\
+          \        Configuration.set_default(c)\n        core_v1 = core_v1_api.CoreV1Api()\n\
+          \n        # Create folders for model-store and config in PV\n        # kserve_namespace\
+          \ = KSERVE_NAMESPACE\n        # model_store_pod_name = MODEL_STORE_POD_NAME\n\
+          \        # model_store_pod_container_name = MODEL_STORE_POD_CONTAINER_NAME\n\
+          \        model_store_pod_name = \"model-store-pod\"\n        model_store_pod_container_name\
+          \ = \"model-store\"\n        model_store_pod_label = \"service.istio.io/canonical-name=model-store-pod\"\
+          \n\n        # kserve_namespace = KSERVE_NAMESPACE\n\n        # Wait for\
+          \ pods to run before exec\n        wait_pod(core_v1, kserve_namespace, model_store_pod_label,\
+          \ model_store_pod_name, 120)\n\n        mkdir_ms_command = \"mkdir -p /pv/model-store/youtubegoes5g/\"\
+          \n        mkdir_ms_result = exec_commands(core_v1, \n                  \
+          \                      kserve_namespace, \n                            \
+          \            model_store_pod_name, \n                                  \
+          \      model_store_pod_container_name, \n                              \
+          \          mkdir_ms_command)\n        mkdir_conf_command = \"mkdir /pv/config/\"\
+          \n        mkdir_conf_result = exec_commands(core_v1, \n                \
+          \                          kserve_namespace, \n                        \
+          \                  model_store_pod_name, \n                            \
+          \              model_store_pod_container_name, \n                      \
+          \                    mkdir_conf_command)\n        mkdir_scripts_command\
+          \ = \"mkdir /pv/scripts/\"\n        mkdir_scripts_result = exec_commands(core_v1,\
+          \ \n                                             kserve_namespace, \n  \
+          \                                           model_store_pod_name, \n   \
+          \                                          model_store_pod_container_name,\
+          \ \n                                             mkdir_scripts_command)\n\
+          \n        # Copy from or to pod\n        def copy_to_tar(source_path, dest_path,\
+          \ tar):\n            \"\"\"\n            Adds a file or directory to a tar\
+          \ archive.\n\n            Parameters:\n            - source_path: Path to\
+          \ the source file or directory on the local machine.\n            - dest_path:\
+          \ Destination directory inside the pod where files should be copied.\n \
+          \           - tar: The tarfile object to which files and directories will\
+          \ be added.\n            \"\"\"\n            source_path = pathlib.Path(source_path)\n\
+          \n            if source_path.is_file():\n                # If it's a file,\
+          \ add to the tarfile with the destination path\n                tar.add(source_path,\
+          \ arcname=pathlib.Path(dest_path).joinpath(source_path.name))\n        \
+          \    elif source_path.is_dir():\n                # If it's a directory,\
+          \ recursively add all its content\n                for root, dirs, files\
+          \ in os.walk(source_path):\n                    root_path = pathlib.Path(root)\n\
+          \                    # Compute the relative path within the tar and add\
+          \ to destination path\n                    for file in files:\n        \
+          \                file_path = root_path / file\n                        tar.add(file_path,\
+          \ arcname=pathlib.Path(dest_path).joinpath(file_path.relative_to(source_path)))\n\
+          \n        def extract_tar_to_local(tar_stream, dest_path):\n           \
+          \ \"\"\"\n            Extracts a tar archive stream to a local directory.\n\
+          \n            Parameters:\n            - tar_stream: Tar stream from the\
+          \ pod.\n            - dest_path: Local directory where the files will be\
+          \ extracted.\n            \"\"\"\n            with tarfile.open(fileobj=tar_stream,\
+          \ mode='r:') as tar:\n                tar.extractall(path=dest_path)\n\n\
+          \        def copy_file_or_dir(api_instance, namespace, pod_name, pod_container_name,\
+          \ source_path, dest_path, to_pod=True):\n            \"\"\"\n          \
+          \  Copies a file or directory between a Kubernetes pod and the local machine.\n\
+          \n            Parameters:\n            - api_instance: Kubernetes API client\
+          \ instance.\n            - namespace: Namespace of the pod.\n          \
+          \  - pod_name: Name of the pod.\n            - pod_container_name: Name\
+          \ of the container within the pod.\n            - source_path: Path to the\
+          \ source file or directory (local or in the pod).\n            - dest_path:\
+          \ Destination directory (local or in the pod).\n            - to_pod: If\
+          \ True, copy from local to pod; if False, copy from pod to local.\n    \
+          \        \"\"\"\n            try:\n                if to_pod:\n        \
+          \            # Copying from local to pod\n                    buf = io.BytesIO()\n\
+          \                    with tarfile.open(fileobj=buf, mode='w:tar') as tar:\n\
+          \                        copy_to_tar(source_path, dest_path, tar)\n\n  \
+          \                  buf.seek(0)  # Reset buffer position after writing tar\n\
+          \n                    exec_command = ['tar', 'xvf', '-', '-C', '/']\n  \
+          \                  resp = stream(api_instance.connect_get_namespaced_pod_exec,\n\
+          \                                  pod_name,\n                         \
+          \         namespace,\n                                  container=pod_container_name,\n\
+          \                                  command=exec_command,\n             \
+          \                     stderr=True, stdin=True, stdout=True, tty=False,\n\
+          \                                  _preload_content=False)\n\n         \
+          \           # Send tar file to pod\n                    while resp.is_open():\n\
+          \                        resp.update(timeout=1)\n                      \
+          \  if resp.peek_stdout():\n                            print(f\"STDOUT:\
+          \ {resp.read_stdout()}\")\n                        if resp.peek_stderr():\n\
+          \                            print(f\"STDERR: {resp.read_stderr()}\")\n\
+          \                        if buf.getvalue():\n                          \
+          \  resp.write_stdin(buf.read())  # Write tar data to pod\n             \
+          \           else:\n                            resp.write_stdin('\\n') \
+          \ # Signal end of input\n                            break\n           \
+          \         resp.close()\n\n                else:\n                    # Copying\
+          \ from pod to local\n                    exec_command = ['tar', 'cvf', '-',\
+          \ source_path]\n                    resp = stream(api_instance.connect_get_namespaced_pod_exec,\n\
+          \                                  pod_name,\n                         \
+          \         namespace,\n                                  container=pod_container_name,\n\
+          \                                  command=exec_command,\n             \
+          \                     stderr=True, stdin=False, stdout=True, tty=False,\n\
+          \                                  _preload_content=False)\n\n         \
+          \           tar_stream = io.BytesIO()\n                    while resp.is_open():\n\
+          \                        resp.update(timeout=1)\n                      \
+          \  if resp.peek_stdout():\n                            tar_stream.write(resp.read_stdout().encode('utf-8'))\
+          \  # Write stdout (tar) to stream\n                        if resp.peek_stderr():\n\
+          \                            print(f\"STDERR: {resp.read_stderr()}\")\n\n\
+          \                    tar_stream.seek(0)  # Reset stream position for extraction\n\
+          \                    extract_tar_to_local(tar_stream, dest_path)\n     \
+          \               resp.close()\n\n            except Exception as e:\n   \
+          \             print(f\"Error copying file or directory: {e}\")\n\n     \
+          \   def minio_setup(minio_url, minio_access_key, minio_secret_key):\n  \
+          \          # Initialize Minio client with just the base URL (without path)\n\
+          \            client = Minio(\n                minio_url,  # Ensure minio_url\
+          \ does not include a path, only the base URL (e.g., http://localhost:9000)\n\
+          \                access_key=minio_access_key,\n                secret_key=minio_secret_key,\n\
+          \                secure=False  # Minio is using HTTP on localhost:9000\n\
+          \            )\n            return client\n\n        # minio_url = MINIO_URL\n\
+          \        # minio_access_key = MINIO_ACCESS_KEY\n        # minio_secret_key\
+          \ = MINIO_SECRET_KEY\n        # bucket_name = MINIO_MODEL_BUCKET_NAME\n\
+          \        pt_object_name = 'model-store/youtubegoes5g/model.pt'\n       \
+          \ model_object_name = 'model-store/youtubegoes5g/model.py'\n        pt_local_file_path\
+          \ = 'model.pt'\n        model_local_file_path = 'model.py'\n\n        #\
+          \ Initialize the MinIO client\n        client = minio_setup(minio_url, minio_access_key,\
+          \ minio_secret_key)\n\n        try:\n            # Download the file from\
+          \ MinIO\n            client.fget_object(bucket_name, pt_object_name, pt_local_file_path)\n\
+          \            print(f\"File {pt_object_name} downloaded successfully to {pt_local_file_path}.\"\
+          )\n        except S3Error as exc:\n            print(f\"Error occurred:\
+          \ {exc}\")\n\n        try:\n            # Download the file from MinIO\n\
+          \            client.fget_object(bucket_name, model_object_name, model_local_file_path)\n\
+          \            print(f\"File {model_object_name} downloaded successfully to\
+          \ {model_local_file_path}.\")\n        except S3Error as exc:\n        \
+          \    print(f\"Error occurred: {exc}\")\n\n        model_pt_source_path =\
+          \ 'model.pt'\n        model_store_dest_path = \"/pv/model-store/youtubegoes5g/\"\
+          \n\n        cp_pt_result = copy_file_or_dir(core_v1, \n                \
+          \                        kserve_namespace, \n                          \
+          \              model_store_pod_name, \n                                \
+          \        model_store_pod_container_name, \n                            \
+          \            model_pt_source_path, \n                                  \
+          \      model_store_dest_path, \n                                       \
+          \ to_pod=True)\n\n        model_py_source_path = 'model.py'\n\n        cp_py_result\
+          \ = copy_file_or_dir(core_v1, \n                                       \
+          \ kserve_namespace, \n                                        model_store_pod_name,\
+          \ \n                                        model_store_pod_container_name,\
+          \ \n                                        model_py_source_path, \n   \
+          \                                     model_store_dest_path, \n        \
+          \                                to_pod=True)\n\n        prop_source_path\
+          \ = f'{github_cloned_dir}/model-archiver/model-store/properties.json'\n\
+          \        model_prop_dest_path = \"/pv/model-store/\"\n\n        cp_prop_result\
+          \ = copy_file_or_dir(core_v1, \n                                       \
+          \   kserve_namespace, \n                                          model_store_pod_name,\
+          \ \n                                          model_store_pod_container_name,\
+          \ \n                                          prop_source_path, \n     \
+          \                                     model_prop_dest_path, \n         \
+          \                                 to_pod=True)\n\n        config_source_path\
+          \ = f'{github_cloned_dir}/model-archiver/config/config.properties'\n   \
+          \     config_dest_path = \"/pv/config/\"\n\n        cp_conf_result = copy_file_or_dir(core_v1,\
+          \ \n                                          kserve_namespace, \n     \
+          \                                     model_store_pod_name, \n         \
+          \                                 model_store_pod_container_name, \n   \
+          \                                       config_source_path, \n         \
+          \                                 config_dest_path, \n                 \
+          \                         to_pod=True)\n\n        scripts_source_path =\
+          \ f'{github_cloned_dir}/model-archiver/scripts/margen.sh'\n        scripts_dest_path\
+          \ = \"/pv/scripts/\"\n\n        cp_scripts_result = copy_file_or_dir(core_v1,\
+          \ \n                                          kserve_namespace, \n     \
+          \                                     model_store_pod_name, \n         \
+          \                                 model_store_pod_container_name, \n   \
+          \                                       scripts_source_path, \n        \
+          \                                  scripts_dest_path, \n               \
+          \                           to_pod=True)\n\n        # Delete model_store_pod\n\
+          \        try:\n            api_response = core_v1.delete_namespaced_pod(model_store_pod_name,\
+          \ kserve_namespace)\n            print(api_response)\n        except ApiException\
+          \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
+          \ %s\\n\" % e)\n\n        # Create model archiver pod\n        mar_yaml_dir\
+          \ = f'{github_cloned_dir}/model-archiver/manifests/'\n        mar_pod_name\
+          \ = \"margen-pod\"\n        mar_pod_container_name = \"margen-container\"\
+          \n        mar_pod_label = \"service.istio.io/canonical-name=margen-pod\"\
+          \n\n        try:\n            margen_result = utils.create_from_directory(k8s_client,\
+          \ mar_yaml_dir, verbose=True)\n        except Exception as e:\n        \
+          \    print(e)\n\n        # Wait for pods to run before exec\n        wait_pod(core_v1,\
+          \ kserve_namespace, mar_pod_label, mar_pod_name, 120)\n\n        # Exec\
+          \ mar gen in a script\n        mar_gen_command = \"bash /home/model-server/scripts/margen.sh\"\
+          \n        mar_gen_result = exec_commands(core_v1, \n                   \
+          \                    kserve_namespace, \n                              \
+          \         mar_pod_name, \n                                       mar_pod_container_name,\
+          \ \n                                       mar_gen_command)\n\n        #\
+          \ Copy mar file to local\n        mar_source_path = \"youtubegoes5g.mar\"\
+          \n        mar_dest_path = \"./\"\n\n        mar_cp_result = copy_file_or_dir(core_v1,\
+          \ \n                                         kserve_namespace, \n      \
+          \                                   mar_pod_name, \n                   \
+          \                      mar_pod_container_name, \n                      \
+          \                   mar_source_path, \n                                \
+          \         mar_dest_path, \n                                         to_pod=False)\n\
+          \n        # Upload mar file to minio\n\n        def upload_file(client,\
+          \ bucket_name, object_name, filepath):\n            # Create the bucket\
+          \ if it does not exist\n            if not client.bucket_exists(bucket_name):\n\
+          \                client.make_bucket(bucket_name)\n                create_bucket_result\
+          \ = f\"Successfully created bucket: {bucket_name}\"\n            else:\n\
+          \                create_bucket_result = f\"Bucket {bucket_name} already\
+          \ exists\"\n\n            try:\n                # Upload the file to the\
+          \ specified path in the bucket\n                client.fput_object(bucket_name,\
+          \ object_name, filepath)\n                return (f'Successfully uploaded\
+          \ {filepath} to {bucket_name}/{object_name}')\n\n            except Exception\
+          \ as e:\n                # Log and raise any upload errors\n           \
+          \     raise Exception(f'Failed to upload model to Minio: {e}')\n\n     \
+          \   mar_object_name = \"model-store/youtubegoes5g.mar\"\n        mar_filepath\
+          \ = './youtubegoes5g.mar'\n\n        up_mar_result = upload_file(client,\
+          \ bucket_name, mar_object_name, mar_filepath)\n\n        # Delete margen\
+          \ pod\n        try:\n            api_response = core_v1.delete_namespaced_pod(mar_pod_name,\
+          \ kserve_namespace)\n            print(api_response)\n        except ApiException\
+          \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
+          \ %s\\n\" % e)\n\n        with open(mar_gen_cond.path, 'w') as f:\n    \
+          \        f.write('1')\n        mar_gen_info.log_metric(\"mar file\", \"\
+          created\")\n    else:\n        with open(mar_gen_cond.path, 'w') as f:\n\
+          \            f.write('0')\n        mar_gen_info.log_metric(\"mar file\"\
+          , \"not created\")\n\n"
+        image: python:3.11.9
     exec-model-serving:
       container:
         args:
@@ -383,22 +726,23 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef model_serving(\n    up_model_cond: Input[Artifact],\n    cond_info:\
-          \ Output[Metrics],\n    bucket_name: str,\n    model_name: str,\n    kserve_namespae:\
+          \ *\n\ndef model_serving(\n    mar_gen_cond: Input[Artifact],\n    cond_info:\
+          \ Output[Metrics],\n    bucket_name: str,\n    model_name: str,\n    kserve_namespace:\
           \ str,\n    kserve_svc_acc: str\n):\n    # Create kserve instance\n    from\
           \ kubernetes import client \n    from kserve import KServeClient, constants,\
           \ V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec,\
           \ V1beta1TorchServeSpec\n    from datetime import datetime\n    import time\n\
-          \n    # exec if a new model was uploaded\n    with open(up_model_cond.path)\
+          \n    # exec if a new model was uploaded\n    with open(mar_gen_cond.path)\
           \ as f:\n        up_model = f.read()\n\n    if up_model == '1':\n      \
-          \  cond_info.log_metric(\"Inference Service\", \"Yes\")\n\n        #Inference\
-          \ server config\n        now = datetime.now()\n        kserve_version='v1beta1'\n\
-          \        api_version = constants.KSERVE_GROUP + '/' + kserve_version\n\n\
-          \        # with open(model_uri.path) as f:\n        #     uri = f.read()\n\
-          \        uri = f's3://{bucket_name}'\n\n        isvc = V1beta1InferenceService(api_version=api_version,\n\
-          \                                       kind=constants.KSERVE_KIND,\n  \
-          \                                     metadata=client.V1ObjectMeta(\n  \
-          \                                         name=model_name, namespace=kserve_namespae,\
+          \  cond_info.log_metric(\"Inference Service\", \"Created/Updated\")\n\n\
+          \        #Inference server config\n        now = datetime.now()\n      \
+          \  kserve_version='v1beta1'\n        api_version = constants.KSERVE_GROUP\
+          \ + '/' + kserve_version\n\n        # with open(model_uri.path) as f:\n\
+          \        #     uri = f.read()\n        uri = f's3://{bucket_name}'\n\n \
+          \       isvc = V1beta1InferenceService(api_version=api_version,\n      \
+          \                                 kind=constants.KSERVE_KIND,\n        \
+          \                               metadata=client.V1ObjectMeta(\n        \
+          \                                   name=model_name, namespace=kserve_namespace,\
           \ annotations={'sidecar.istio.io/inject':'false'}),\n                  \
           \                     spec=V1beta1InferenceServiceSpec(\n              \
           \                         predictor=V1beta1PredictorSpec(\n            \
@@ -407,10 +751,11 @@ deploymentSpec:
           \                                               storage_uri=uri))))\n  \
           \      )\n\n        KServe = KServeClient()\n\n        #replace old inference\
           \ service with a new one\n        try:\n            KServe.delete(name=model_name,\
-          \ namespace=kserve_namespae)\n            print(\"Old model deleted\")\n\
+          \ namespace=kserve_namespace)\n            print(\"Old model deleted\")\n\
           \        except:\n            print(\"Couldn't delete old model\")\n   \
           \     time.sleep(10)\n\n        KServe.create(isvc)\n    else:\n       \
-          \ cond_info.log_metric(\"Inference Service\", \"No\")\n\n"
+          \ cond_info.log_metric(\"Inference Service\", \"Not Created/Updated\")\n\
+          \n"
         image: python:3.11.9
     exec-model-training:
       container:
@@ -593,6 +938,10 @@ root:
           artifactSelectors:
           - outputArtifactKey: dataset_info
             producerSubtask: data-ingestion
+        mar-gen-mar_gen_info:
+          artifactSelectors:
+          - outputArtifactKey: mar_gen_info
+            producerSubtask: mar-gen
         model-serving-cond_info:
           artifactSelectors:
           - outputArtifactKey: cond_info
@@ -658,11 +1007,11 @@ root:
                 producerTask: data-ingestion
         taskInfo:
           name: data-preparation
-      model-serving:
+      mar-gen:
         cachingOptions:
           enableCache: true
         componentRef:
-          name: comp-model-serving
+          name: comp-mar-gen
         dependentTasks:
         - model-training
         inputs:
@@ -674,8 +1023,46 @@ root:
           parameters:
             bucket_name:
               componentInputParameter: bucket_name
-            kserve_namespae:
-              componentInputParameter: kserve_namespae
+            github_cloned_dir:
+              componentInputParameter: github_cloned_dir
+            github_main_branch:
+              componentInputParameter: github_main_branch
+            github_repo_url:
+              componentInputParameter: github_repo_url
+            github_token:
+              componentInputParameter: github_token
+            github_username:
+              componentInputParameter: github_username
+            k8s_api_token:
+              componentInputParameter: k8s_api_token
+            kserve_namespace:
+              componentInputParameter: kserve_namespace
+            minio_access_key:
+              componentInputParameter: minio_access_key
+            minio_secret_key:
+              componentInputParameter: minio_secret_key
+            minio_url:
+              componentInputParameter: minio_url
+        taskInfo:
+          name: mar-gen
+      model-serving:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-model-serving
+        dependentTasks:
+        - mar-gen
+        inputs:
+          artifacts:
+            mar_gen_cond:
+              taskOutputArtifact:
+                outputArtifactKey: mar_gen_cond
+                producerTask: mar-gen
+          parameters:
+            bucket_name:
+              componentInputParameter: bucket_name
+            kserve_namespace:
+              componentInputParameter: kserve_namespace
             kserve_svc_acc:
               componentInputParameter: kserve_svc_acc
             model_name:
@@ -752,13 +1139,17 @@ root:
         parameterType: STRING
       github_dvc_branch:
         parameterType: STRING
+      github_main_branch:
+        parameterType: STRING
       github_repo_url:
         parameterType: STRING
       github_token:
         parameterType: STRING
       github_username:
         parameterType: STRING
-      kserve_namespae:
+      k8s_api_token:
+        parameterType: STRING
+      kserve_namespace:
         parameterType: STRING
       kserve_svc_acc:
         parameterType: STRING
@@ -791,6 +1182,10 @@ root:
   outputDefinitions:
     artifacts:
       data-ingestion-dataset_info:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+      mar-gen-mar_gen_info:
         artifactType:
           schemaTitle: system.Metrics
           schemaVersion: 0.0.1
