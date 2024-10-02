@@ -748,7 +748,7 @@ def append_csv():
             #return jsonify({'error': 'Trigger type not provided'}), 400
 
         # Retrieve and convert quantity factor to float
-        quantity_factor = request.form.get('quantity_factor')
+        quantity_factor = request.form.get('quantity_factor', 10)
         if not quantity_factor:
             quantity_factor = QUANTITY_FACTOR
             #return jsonify({'error': 'Quantity factor not provided'}), 400
@@ -763,7 +763,7 @@ def append_csv():
             return redirect(url_for('home'))
         
         # Retrieve and convert quantity factor to float
-        performance_factor = request.form.get('performance_factor')
+        performance_factor = request.form.get('performance_factor', 5)
         if not performance_factor:
             performance_factor = PERFORMANCE_FACTOR
             #return jsonify({'error': 'Performance factor not provided'}), 400

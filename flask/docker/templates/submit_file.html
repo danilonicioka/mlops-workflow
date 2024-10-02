@@ -7,28 +7,28 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
         }
         h1 {
+            text-align: center;
             color: #333;
         }
-        form {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        .container {
+            margin: 0 auto;
+            width: 50%;
         }
         label {
             font-weight: bold;
         }
-        input[type="file"], input[type="number"], select {
-            margin: 10px 0;
-            padding: 5px;
-            width: 100%;
+        .input-field {
+            margin-bottom: 15px;
         }
-        input[type="submit"] {
+        .hidden {
+            display: none;
+        }
+        .button {
             background-color: #4CAF50;
             color: white;
             padding: 10px 20px;
@@ -36,37 +36,69 @@
             border-radius: 5px;
             cursor: pointer;
         }
-        input[type="submit"]:hover {
+        .button:hover {
             background-color: #45a049;
         }
     </style>
+    <script>
+        function handleTriggerTypeChange() {
+            const triggerType = document.getElementById('trigger_type').value;
+            const quantityFactorField = document.getElementById('quantity_factor_field');
+            const performanceFactorField = document.getElementById('performance_factor_field');
+            const quantityFactorInput = document.getElementById('quantity_factor');
+            const performanceFactorInput = document.getElementById('performance_factor');
+            
+            // Show/hide fields based on the selected trigger type
+            if (triggerType === '2') {
+                quantityFactorField.classList.remove('hidden');
+                performanceFactorField.classList.add('hidden');
+                quantityFactorInput.value = '';  // Clear any previous default
+                performanceFactorInput.value = '5';  // Set default value for performance factor when hidden
+            } else if (triggerType === '3') {
+                quantityFactorField.classList.add('hidden');
+                performanceFactorField.classList.remove('hidden');
+                quantityFactorInput.value = '10';  // Set default value for quantity factor when hidden
+                performanceFactorInput.value = '';  // Clear any previous default
+            } else {
+                quantityFactorField.classList.add('hidden');
+                performanceFactorField.classList.add('hidden');
+                quantityFactorInput.value = '10';  // Set default for quantity factor
+                performanceFactorInput.value = '5';  // Set default for performance factor
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Upload CSV File</h1>
-    <form action="/append_csv" method="POST" enctype="multipart/form-data">
-        <!-- CSV File Input -->
-        <label for="source_csv">Select CSV file:</label>
-        <input type="file" name="source_csv" id="source_csv" accept=".csv" required><br><br>
+    <div class="container">
+        <form action="/append_csv" method="POST" enctype="multipart/form-data">
+            <div class="input-field">
+                <label for="source_csv">Select CSV file:</label><br>
+                <input type="file" name="source_csv" id="source_csv" accept=".csv" required><br>
+            </div>
 
-        <!-- Trigger Type Dropdown and Quantity Factor Input -->
-    
-        <label for="trigger_type">Select Trigger Type:</label>
-        <select name="trigger_type" id="trigger_type" required>
-            <option value="0">0 - Not Retraining</option>
-            <option value="1">1 - Always Retraining</option>
-            <option value="2">2 - Quantity Trigger</option>
-            <option value="3">3 - Performance Trigger</option>
-        </select><br><br>
+            <div class="input-field">
+                <label for="trigger_type">Trigger Type:</label><br>
+                <select name="trigger_type" id="trigger_type" onchange="handleTriggerTypeChange()" required>
+                    <option value="0">0 - Not Retraining</option>
+                    <option value="1">1 - Always Retraining</option>
+                    <option value="2">2 - Quantity Trigger</option>
+                    <option value="3">3 - Performance Trigger</option>
+                </select><br>
+            </div>
 
-        <label for="quantity_factor">Enter Quantity Factor (%):</label>
-        <input type="number" name="quantity_factor" id="quantity_factor" min="0" max="100" step="0.01" placeholder="Enter percentage" required><br><br>
-        
-        <label for="performance_factor">Enter Performance Factor (%):</label>
-        <input type="number" name="performance_factor" id="performance_factor" min="0" max="100" step="0.01" placeholder="Enter percentage" required><br><br>
-    
-        
-        <!-- Submit Button -->
-        <input type="submit" value="Upload and Process">
-    </form>
+            <div class="input-field hidden" id="quantity_factor_field">
+                <label for="quantity_factor">Quantity Factor (only for Trigger Type 2):</label><br>
+                <input type="number" name="quantity_factor" id="quantity_factor" step="0.01" placeholder="Enter quantity factor"><br>
+            </div>
+
+            <div class="input-field hidden" id="performance_factor_field">
+                <label for="performance_factor">Performance Factor (only for Trigger Type 3):</label><br>
+                <input type="number" name="performance_factor" id="performance_factor" step="0.01" placeholder="Enter performance factor"><br>
+            </div>
+
+            <input type="submit" value="Upload and Process" class="button">
+        </form>
+    </div>
 </body>
 </html>
