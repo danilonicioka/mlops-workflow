@@ -89,8 +89,8 @@ GITHUB_COMMIT_MSG_APPEND = 'Update .dvc file'
 GITHUB_MAIN_BRANCH = "main"
 
 # MinIO variables
-MINIO_URL = "minio-service.kubeflow:9000"
-#MINIO_URL = 'localhost:9000'
+MINIO_CLUSTER_URL = "minio-service.kubeflow:9000"
+MINIO_LOCAL_URL = 'localhost:9000'
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_MODEL_BUCKET_NAME = "model-files"
@@ -699,11 +699,11 @@ def init():
         commit_and_push_changes(repo, [DVC_FILE_PATH_EXT, GITHUB_GITIGNORE_PATH], GITHUB_COMMIT_MSG_INIT, GITHUB_DVC_BRANCH)
 
         # Set up Minio client and create a bucket if needed
-        client = setup_minio_client(MINIO_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, DVC_BUCKET_NAME)
+        client = setup_minio_client(MINIO_LOCAL_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, DVC_BUCKET_NAME)
 
         # Configure Minio as the remote DVC repository
         remote_url = f's3://{DVC_BUCKET_NAME}'
-        configure_dvc_remote(GITHUB_CLONED_DIR, DVC_REMOTE_DB, remote_url, MINIO_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
+        configure_dvc_remote(GITHUB_CLONED_DIR, DVC_REMOTE_DB, remote_url, MINIO_LOCAL_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
 
         # Push data to remote DVC repository
         push_data_to_dvc(GITHUB_CLONED_DIR, DVC_REMOTE_DB)
@@ -860,7 +860,7 @@ def append_csv():
             'github_main_branch': GITHUB_MAIN_BRANCH,
             'dvc_remote_name': DVC_REMOTE_DB,
             'dvc_remote_db_url': DVC_REMOTE_DB_URL,
-            'minio_url': MINIO_URL,
+            'minio_url': MINIO_CLUSTER_URL,
             'minio_access_key': MINIO_ACCESS_KEY,
             'minio_secret_key': MINIO_SECRET_KEY,
             'dvc_file_dir': DVC_FILE_DIR,
