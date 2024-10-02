@@ -89,8 +89,8 @@ GITHUB_COMMIT_MSG_APPEND = 'Update .dvc file'
 GITHUB_MAIN_BRANCH = "main"
 
 # MinIO variables
-#MINIO_URL = "minio-service.kubeflow:9000"
-MINIO_URL = 'localhost:9000'
+MINIO_URL = "minio-service.kubeflow:9000"
+#MINIO_URL = 'localhost:9000'
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_MODEL_BUCKET_NAME = "model-files"
