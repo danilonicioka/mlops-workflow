@@ -86,6 +86,7 @@ GITHUB_DVC_BRANCH = "dvc"
 GITHUB_GITIGNORE_PATH = os.path.join(DVC_FILE_DIR, '.gitignore')
 GITHUB_COMMIT_MSG_INIT = 'Add .dvc and .gitignore files'
 GITHUB_COMMIT_MSG_APPEND = 'Update .dvc file'
+GITHUB_MAIN_BRANCH = "main"
 
 # MinIO variables
 #MINIO_URL = "minio-service.kubeflow:9000"
@@ -854,6 +855,7 @@ def append_csv():
             'github_dvc_branch': GITHUB_DVC_BRANCH,
             'github_username': config['GITHUB_USERNAME'], 
             'github_token': config['GITHUB_TOKEN'],
+            'github_main_branch': GITHUB_MAIN_BRANCH,
             'dvc_remote_name': DVC_REMOTE_DB,
             'dvc_remote_db_url': DVC_REMOTE_DB_URL,
             'minio_url': MINIO_URL,
@@ -862,7 +864,7 @@ def append_csv():
             'dvc_file_dir': DVC_FILE_DIR,
             'dvc_file_name': DVC_FILE_NAME,
             'model_name': MODEL_NAME,
-            'kserve_namespae': KSERVE_NAMESPACE,
+            'kserve_namespace': KSERVE_NAMESPACE,
             'model_lr': MODEL_LR,
             'model_epochs': MODEL_EPOCHS,
             'model_print_frequency_per_n_epochs': MODEL_PRINT_FREQUENCY_PER_N_EPOCHS,
