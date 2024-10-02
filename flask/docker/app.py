@@ -60,8 +60,8 @@ KUBEFLOW_HOST_URL = 'http://localhost:8080'
 KUBEFLOW_TOKEN = os.environ.get('KUBEFLOW_TOKEN'),  # Token for Kubeflow Pipelines authentication
 # with open(os.environ['KF_PIPELINES_SA_TOKEN_PATH'], "r") as f:
 #     KUBEFLOW_TOKEN = f.read()
-KUBEFLOW_PIPELINE_ID = 'd31e6f57-61ef-4fb8-ade2-a04abff85f1f'
-KUBEFLOW_VERSION_ID = 'f2c184dc-0023-46d1-bcfd-0b17adf5e883'
+KUBEFLOW_PIPELINE_ID = '1b916964-15e9-466d-9590-6446b0b6e9ea'
+KUBEFLOW_VERSION_ID = 'f45e7c74-02c3-4a9a-a1f5-23cf7e10e887'
 KUBEFLOW_SVC_ACC = 'default-editor'
 K8S_API_TOKEN = os.environ.get('K8S_API_TOKEN')
 
