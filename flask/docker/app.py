@@ -844,6 +844,8 @@ def append_csv():
                     update_number_samples(new_quantity, TEMP_DIR, TEMP_FILE_N_SAMPLES_SINCE_LAST_RUN)
             elif trigger_type == '3':
                 job_name = "Performance trigger job"
+                flash_msg = f'{flash_msg}, and triggered pipeline run. The performance factor will be measured in the pipeline.'
+                exec_pipe = True
             else:
                 flash_msg = f'Trigger type {trigger_type} not defined'
                 job_name = flash_msg
@@ -868,7 +870,7 @@ def append_csv():
             'model_lr': MODEL_LR,
             'model_epochs': MODEL_EPOCHS,
             'model_print_frequency_per_n_epochs': MODEL_PRINT_FREQUENCY_PER_N_EPOCHS,
-            'bucket_name': DVC_BUCKET_NAME,
+            'bucket_name': MINIO_MODEL_BUCKET_NAME,
             'minio_model_object_name': MINIO_MODEL_OBJECT_NAME,
             'kserve_svc_acc': KSERVE_SVC_ACC,
             'trigger_type': trigger_type,  # Include the trigger type in the pipeline parameters
