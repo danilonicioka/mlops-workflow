@@ -547,6 +547,7 @@ def execute_pipeline_run(kfp_host, dex_user, dex_pass, namespace, job_name, para
             params=params,
             pipeline_id=pipeline_id,
             version_id=version_id,
+            enable_caching=False,
             service_account=svc_acc
         )
 
