@@ -960,8 +960,7 @@ root:
             producerSubtask: model-training
     tasks:
       data-ingestion:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-data-ingestion
         inputs:
@@ -993,8 +992,7 @@ root:
         taskInfo:
           name: data-ingestion
       data-preparation:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-data-preparation
         dependentTasks:
@@ -1008,8 +1006,7 @@ root:
         taskInfo:
           name: data-preparation
       mar-gen:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-mar-gen
         dependentTasks:
@@ -1046,8 +1043,7 @@ root:
         taskInfo:
           name: mar-gen
       model-serving:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-model-serving
         dependentTasks:
@@ -1070,8 +1066,7 @@ root:
         taskInfo:
           name: model-serving
       model-training:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-model-training
         dependentTasks:
