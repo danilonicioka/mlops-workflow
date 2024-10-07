@@ -440,7 +440,8 @@ deploymentSpec:
           \ import Minio\n    from minio.error import S3Error\n    from git import\
           \ Repo\n    from subprocess import run\n\n    # exec if a new model was\
           \ uploaded\n    with open(up_model_cond.path) as f:\n        up_model =\
-          \ f.read()\n\n    if up_model == '1':\n        def clone_repository_with_token(github_repo_url,\
+          \ f.read()\n\n    if up_model == '1':\n        ## aux functions\n\n    \
+          \    # clone repo to get custom files for model\n        def clone_repository_with_token(github_repo_url,\
           \ \n                                        github_cloned_dir, \n      \
           \                                  github_branch, \n                   \
           \                     github_username, \n                              \
@@ -452,20 +453,8 @@ deploymentSpec:
           \               repo = Repo.clone_from(url_with_token, github_cloned_dir,\
           \ branch=github_branch)\n                return \"Repository cloned successfully\"\
           \n            except Exception as e:\n                return f\"Error occurred\
-          \ during repository cloning: {e}\"\n\n        # github_repo_url = GITHUB_REPO_URL\n\
-          \        # github_cloned_dir = GITHUB_CLONED_DIR\n        # github_main_branch\
-          \ = GITHUB_MAIN_BRANCH\n        # github_username = GITHUB_USERNAME\n  \
-          \      # github_token = GITHUB_TOKEN\n\n        clone_result = clone_repository_with_token(github_repo_url,\
-          \ \n                                                   github_cloned_dir,\
-          \ \n                                                   github_main_branch,\
-          \ \n                                                   github_username,\
-          \ \n                                                   github_token)\n\n\
-          \        # config.load_kube_config(\"kubeconfig\")\n        config.load_incluster_config()\n\
-          \        k8s_client = client.ApiClient()\n        model_store_yaml_dir =\
-          \ f'{github_cloned_dir}/model-archiver/model-store-manifests/'\n\n     \
-          \   try:\n            pv_result = utils.create_from_directory(k8s_client,\
-          \ model_store_yaml_dir, verbose=True)\n        except Exception as e:\n\
-          \            print(e)\n\n        def wait_pod(core_v1, namespace, label,\
+          \ during repository cloning: {e}\"\n\n        # to wait some time while\
+          \ pod isn't running yet\n        def wait_pod(core_v1, namespace, label,\
           \ pod_name, time_in_sec):\n            w = watch.Watch()\n            for\
           \ event in w.stream(func=core_v1.list_namespaced_pod,\n                \
           \                      namespace=namespace,\n                          \
@@ -477,11 +466,11 @@ deploymentSpec:
           \ DELETED\n                if event[\"type\"] == \"DELETED\":\n        \
           \            # Pod was deleted while we were waiting for it to start.\n\
           \                    print(f\"{pod_name} deleted before it started\")\n\
-          \                    w.stop()\n                    return\n\n        def\
-          \ exec_commands(api_instance, namespace, pod_name, pod_container_name, command):\n\
-          \            name = pod_name\n            resp = None\n            try:\n\
-          \                resp = api_instance.read_namespaced_pod(name=name,\n  \
-          \                                                      namespace=namespace)\n\
+          \                    w.stop()\n                    return\n\n        # kubectl\
+          \ exec\n        def exec_commands(api_instance, namespace, pod_name, pod_container_name,\
+          \ command):\n            name = pod_name\n            resp = None\n    \
+          \        try:\n                resp = api_instance.read_namespaced_pod(name=name,\n\
+          \                                                        namespace=namespace)\n\
           \            except ApiException as e:\n                if e.status != 404:\n\
           \                    print(f\"Unknown error: {e}\")\n                  \
           \  exit(1)\n\n            if not resp:\n                print(f\"Pod {name}\
@@ -494,40 +483,14 @@ deploymentSpec:
           \     name=pod_name,\n                  container=pod_container_name,\n\
           \                  namespace=namespace,\n                  command=exec_command,\n\
           \                  stderr=True, stdin=False,\n                  stdout=True,\
-          \ tty=False)\n            print(\"Response: \" + resp)\n\n        try:\n\
-          \            c = Configuration().get_default_copy()\n        except AttributeError:\n\
-          \            c = Configuration()\n            c.assert_hostname = False\n\
-          \        Configuration.set_default(c)\n        core_v1 = core_v1_api.CoreV1Api()\n\
-          \n        # Create folders for model-store and config in PV\n        # kserve_namespace\
-          \ = KSERVE_NAMESPACE\n        # model_store_pod_name = MODEL_STORE_POD_NAME\n\
-          \        # model_store_pod_container_name = MODEL_STORE_POD_CONTAINER_NAME\n\
-          \        model_store_pod_name = \"model-store-pod\"\n        model_store_pod_container_name\
-          \ = \"model-store\"\n        model_store_pod_label = \"service.istio.io/canonical-name=model-store-pod\"\
-          \n\n        # kserve_namespace = KSERVE_NAMESPACE\n\n        # Wait for\
-          \ pods to run before exec\n        wait_pod(core_v1, kserve_namespace, model_store_pod_label,\
-          \ model_store_pod_name, 120)\n\n        mkdir_ms_command = \"mkdir -p /pv/model-store/youtubegoes5g/\"\
-          \n        mkdir_ms_result = exec_commands(core_v1, \n                  \
-          \                      kserve_namespace, \n                            \
-          \            model_store_pod_name, \n                                  \
-          \      model_store_pod_container_name, \n                              \
-          \          mkdir_ms_command)\n        mkdir_conf_command = \"mkdir /pv/config/\"\
-          \n        mkdir_conf_result = exec_commands(core_v1, \n                \
-          \                          kserve_namespace, \n                        \
-          \                  model_store_pod_name, \n                            \
-          \              model_store_pod_container_name, \n                      \
-          \                    mkdir_conf_command)\n        mkdir_scripts_command\
-          \ = \"mkdir /pv/scripts/\"\n        mkdir_scripts_result = exec_commands(core_v1,\
-          \ \n                                             kserve_namespace, \n  \
-          \                                           model_store_pod_name, \n   \
-          \                                          model_store_pod_container_name,\
-          \ \n                                             mkdir_scripts_command)\n\
-          \n        # Copy from or to pod\n        def copy_to_tar(source_path, dest_path,\
-          \ tar):\n            \"\"\"\n            Adds a file or directory to a tar\
-          \ archive.\n\n            Parameters:\n            - source_path: Path to\
-          \ the source file or directory on the local machine.\n            - dest_path:\
-          \ Destination directory inside the pod where files should be copied.\n \
-          \           - tar: The tarfile object to which files and directories will\
-          \ be added.\n            \"\"\"\n            source_path = pathlib.Path(source_path)\n\
+          \ tty=False)\n            print(\"Response: \" + resp)\n\n        # Copy\
+          \ from or to pod\n        def copy_to_tar(source_path, dest_path, tar):\n\
+          \            \"\"\"\n            Adds a file or directory to a tar archive.\n\
+          \n            Parameters:\n            - source_path: Path to the source\
+          \ file or directory on the local machine.\n            - dest_path: Destination\
+          \ directory inside the pod where files should be copied.\n            -\
+          \ tar: The tarfile object to which files and directories will be added.\n\
+          \            \"\"\"\n            source_path = pathlib.Path(source_path)\n\
           \n            if source_path.is_file():\n                # If it's a file,\
           \ add to the tarfile with the destination path\n                tar.add(source_path,\
           \ arcname=pathlib.Path(dest_path).joinpath(source_path.name))\n        \
@@ -592,13 +555,14 @@ deploymentSpec:
           \                    extract_tar_to_local(tar_stream, dest_path)\n     \
           \               resp.close()\n\n            except Exception as e:\n   \
           \             print(f\"Error copying file or directory: {e}\")\n\n     \
-          \   def minio_setup(minio_url, minio_access_key, minio_secret_key):\n  \
-          \          # Initialize Minio client with just the base URL (without path)\n\
-          \            client = Minio(\n                minio_url,  # Ensure minio_url\
-          \ does not include a path, only the base URL (e.g., http://localhost:9000)\n\
-          \                access_key=minio_access_key,\n                secret_key=minio_secret_key,\n\
-          \                secure=False  # Minio is using HTTP on localhost:9000\n\
-          \            )\n            return client\n\n        def upload_file(client,\
+          \   # init minio client\n        def minio_setup(minio_url, minio_access_key,\
+          \ minio_secret_key):\n            # Initialize Minio client with just the\
+          \ base URL (without path)\n            client = Minio(\n               \
+          \ minio_url,  # Ensure minio_url does not include a path, only the base\
+          \ URL (e.g., http://localhost:9000)\n                access_key=minio_access_key,\n\
+          \                secret_key=minio_secret_key,\n                secure=False\
+          \  # Minio is using HTTP on localhost:9000\n            )\n            return\
+          \ client\n\n        # upload file to minio using a client\n        def upload_file(client,\
           \ bucket_name, object_name, filepath):\n            # Create the bucket\
           \ if it does not exist\n            if not client.bucket_exists(bucket_name):\n\
           \                client.make_bucket(bucket_name)\n                create_bucket_result\
@@ -610,59 +574,91 @@ deploymentSpec:
           \ {filepath} to {bucket_name}/{object_name}')\n\n            except Exception\
           \ as e:\n                # Log and raise any upload errors\n           \
           \     raise Exception(f'Failed to upload model to Minio: {e}')\n\n     \
-          \   # minio_url = MINIO_URL\n        # minio_access_key = MINIO_ACCESS_KEY\n\
-          \        # minio_secret_key = MINIO_SECRET_KEY\n        # bucket_name =\
-          \ MINIO_MODEL_BUCKET_NAME\n        pt_object_name = 'model-store/youtubegoes5g/model.pt'\n\
-          \        model_object_name = 'model-store/youtubegoes5g/model.py'\n    \
-          \    pt_local_file_path = 'model.pt'\n        model_local_file_path = 'model.py'\n\
-          \n        # Initialize the MinIO client\n        client = minio_setup(minio_url,\
-          \ minio_access_key, minio_secret_key)\n\n        try:\n            # Download\
-          \ the file from MinIO\n            client.fget_object(bucket_name, pt_object_name,\
-          \ pt_local_file_path)\n            print(f\"File {pt_object_name} downloaded\
-          \ successfully to {pt_local_file_path}.\")\n        except S3Error as exc:\n\
-          \            print(f\"Error occurred: {exc}\")\n\n        try:\n       \
-          \     # Download the file from MinIO\n            client.fget_object(bucket_name,\
-          \ model_object_name, model_local_file_path)\n            print(f\"File {model_object_name}\
-          \ downloaded successfully to {model_local_file_path}.\")\n        except\
-          \ S3Error as exc:\n            print(f\"Error occurred: {exc}\")\n\n   \
-          \     model_pt_source_path = 'model.pt'\n        model_store_dest_path =\
-          \ \"/pv/model-store/youtubegoes5g/\"\n\n        cp_pt_result = copy_file_or_dir(core_v1,\
-          \ \n                                        kserve_namespace, \n       \
-          \                                 model_store_pod_name, \n             \
-          \                           model_store_pod_container_name, \n         \
-          \                               model_pt_source_path, \n               \
-          \                         model_store_dest_path, \n                    \
-          \                    to_pod=True)\n\n        model_py_source_path = 'model.py'\n\
+          \   # clone the repo\n        clone_result = clone_repository_with_token(github_repo_url,\
+          \ \n                                                   github_cloned_dir,\
+          \ \n                                                   github_main_branch,\
+          \ \n                                                   github_username,\
+          \ \n                                                   github_token)\n\n\
+          \        ## init access to cluster when outside or inside the cluster\n\
+          \        # config.load_kube_config(\"kubeconfig\")\n        config.load_incluster_config()\n\
+          \        k8s_client = client.ApiClient()\n\n        # apply model-store\
+          \ manifests \n        model_store_yaml_dir = f'{github_cloned_dir}/model-archiver/model-store-manifests/'\n\
+          \        try:\n            pv_result = utils.create_from_directory(k8s_client,\
+          \ model_store_yaml_dir, verbose=True)\n        except Exception as e:\n\
+          \            print(e)\n\n        # init config to exec commands in pods\n\
+          \        try:\n            c = Configuration().get_default_copy()\n    \
+          \    except AttributeError:\n            c = Configuration()\n         \
+          \   c.assert_hostname = False\n        Configuration.set_default(c)\n  \
+          \      core_v1 = core_v1_api.CoreV1Api()\n\n        # Create folders for\
+          \ model-store, config and scripts in PV\n        model_store_pod_name =\
+          \ \"model-store-pod\"\n        model_store_pod_container_name = \"model-store\"\
+          \n        model_store_pod_label = \"service.istio.io/canonical-name=model-store-pod\"\
+          \n\n        # Wait for pods to run before exec\n        wait_pod(core_v1,\
+          \ kserve_namespace, model_store_pod_label, model_store_pod_name, 120)\n\n\
+          \        mkdir_ms_command = \"mkdir -p /pv/model-store/youtubegoes5g/\"\n\
+          \        mkdir_ms_result = exec_commands(core_v1, \n                   \
+          \                     kserve_namespace, \n                             \
+          \           model_store_pod_name, \n                                   \
+          \     model_store_pod_container_name, \n                               \
+          \         mkdir_ms_command)\n        mkdir_conf_command = \"mkdir /pv/config/\"\
+          \n        mkdir_conf_result = exec_commands(core_v1, \n                \
+          \                          kserve_namespace, \n                        \
+          \                  model_store_pod_name, \n                            \
+          \              model_store_pod_container_name, \n                      \
+          \                    mkdir_conf_command)\n        mkdir_scripts_command\
+          \ = \"mkdir /pv/scripts/\"\n        mkdir_scripts_result = exec_commands(core_v1,\
+          \ \n                                             kserve_namespace, \n  \
+          \                                           model_store_pod_name, \n   \
+          \                                          model_store_pod_container_name,\
+          \ \n                                             mkdir_scripts_command)\n\
+          \n        # download pt file from minio\n        pt_object_name = 'model-store/youtubegoes5g/model.pt'\n\
+          \        pt_local_file_path = 'model.pt'\n\n        # Initialize the MinIO\
+          \ client\n        client = minio_setup(minio_url, minio_access_key, minio_secret_key)\n\
+          \n        try:\n            # Download the file from MinIO\n           \
+          \ client.fget_object(bucket_name, pt_object_name, pt_local_file_path)\n\
+          \            print(f\"File {pt_object_name} downloaded successfully to {pt_local_file_path}.\"\
+          )\n        except S3Error as exc:\n            print(f\"Error occurred:\
+          \ {exc}\")\n\n        # cp pt file to model store pod\n        model_pt_source_path\
+          \ = 'model.pt'\n        model_store_dest_path = \"/pv/model-store/youtubegoes5g/\"\
+          \n\n        cp_pt_result = copy_file_or_dir(core_v1, \n                \
+          \                        kserve_namespace, \n                          \
+          \              model_store_pod_name, \n                                \
+          \        model_store_pod_container_name, \n                            \
+          \            model_pt_source_path, \n                                  \
+          \      model_store_dest_path, \n                                       \
+          \ to_pod=True)\n\n        # cp model.py file to model store pod\n      \
+          \  model_py_source_path =  f'{github_cloned_dir}/model-archiver/model-store/youtubegoes5g/model.py'\n\
           \n        cp_py_result = copy_file_or_dir(core_v1, \n                  \
           \                      kserve_namespace, \n                            \
           \            model_store_pod_name, \n                                  \
           \      model_store_pod_container_name, \n                              \
           \          model_py_source_path, \n                                    \
           \    model_store_dest_path, \n                                        to_pod=True)\n\
-          \n        prop_source_path = f'{github_cloned_dir}/model-archiver/model-store/properties.json'\n\
+          \n        # cp properties.json file to model store pod\n        prop_source_path\
+          \ = f'{github_cloned_dir}/model-archiver/model-store/properties.json'\n\
           \        model_prop_dest_path = \"/pv/model-store/\"\n\n        cp_prop_result\
           \ = copy_file_or_dir(core_v1, \n                                       \
           \   kserve_namespace, \n                                          model_store_pod_name,\
           \ \n                                          model_store_pod_container_name,\
           \ \n                                          prop_source_path, \n     \
           \                                     model_prop_dest_path, \n         \
-          \                                 to_pod=True)\n\n        config_source_path\
-          \ = f'{github_cloned_dir}/model-archiver/config/config.properties'\n   \
-          \     config_dest_path = \"/pv/config/\"\n\n        cp_conf_result = copy_file_or_dir(core_v1,\
-          \ \n                                          kserve_namespace, \n     \
-          \                                     model_store_pod_name, \n         \
-          \                                 model_store_pod_container_name, \n   \
-          \                                       config_source_path, \n         \
-          \                                 config_dest_path, \n                 \
-          \                         to_pod=True)\n\n        scripts_source_path =\
-          \ f'{github_cloned_dir}/model-archiver/scripts/margen.sh'\n        scripts_dest_path\
-          \ = \"/pv/scripts/\"\n\n        cp_scripts_result = copy_file_or_dir(core_v1,\
-          \ \n                                          kserve_namespace, \n     \
-          \                                     model_store_pod_name, \n         \
-          \                                 model_store_pod_container_name, \n   \
-          \                                       scripts_source_path, \n        \
-          \                                  scripts_dest_path, \n               \
-          \                           to_pod=True)\n\n        # Delete model_store_pod\n\
+          \                                 to_pod=True)\n\n        # cp config.properties\
+          \ file to model store pod\n        config_source_path = f'{github_cloned_dir}/model-archiver/config/config.properties'\n\
+          \        config_dest_path = \"/pv/config/\"\n\n        cp_conf_result =\
+          \ copy_file_or_dir(core_v1, \n                                         \
+          \ kserve_namespace, \n                                          model_store_pod_name,\
+          \ \n                                          model_store_pod_container_name,\
+          \ \n                                          config_source_path, \n   \
+          \                                       config_dest_path, \n           \
+          \                               to_pod=True)\n\n        # cp margen script\
+          \ file to model store pod\n        scripts_source_path = f'{github_cloned_dir}/model-archiver/scripts/margen.sh'\n\
+          \        scripts_dest_path = \"/pv/scripts/\"\n\n        cp_scripts_result\
+          \ = copy_file_or_dir(core_v1, \n                                       \
+          \   kserve_namespace, \n                                          model_store_pod_name,\
+          \ \n                                          model_store_pod_container_name,\
+          \ \n                                          scripts_source_path, \n  \
+          \                                        scripts_dest_path, \n         \
+          \                                 to_pod=True)\n\n        # Delete model_store_pod\n\
           \        try:\n            api_response = core_v1.delete_namespaced_pod(model_store_pod_name,\
           \ kserve_namespace)\n            print(api_response)\n        except ApiException\
           \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
