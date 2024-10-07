@@ -598,37 +598,48 @@ deploymentSpec:
           \ does not include a path, only the base URL (e.g., http://localhost:9000)\n\
           \                access_key=minio_access_key,\n                secret_key=minio_secret_key,\n\
           \                secure=False  # Minio is using HTTP on localhost:9000\n\
-          \            )\n            return client\n\n        # minio_url = MINIO_URL\n\
-          \        # minio_access_key = MINIO_ACCESS_KEY\n        # minio_secret_key\
-          \ = MINIO_SECRET_KEY\n        # bucket_name = MINIO_MODEL_BUCKET_NAME\n\
-          \        pt_object_name = 'model-store/youtubegoes5g/model.pt'\n       \
-          \ model_object_name = 'model-store/youtubegoes5g/model.py'\n        pt_local_file_path\
-          \ = 'model.pt'\n        model_local_file_path = 'model.py'\n\n        #\
-          \ Initialize the MinIO client\n        client = minio_setup(minio_url, minio_access_key,\
-          \ minio_secret_key)\n\n        try:\n            # Download the file from\
-          \ MinIO\n            client.fget_object(bucket_name, pt_object_name, pt_local_file_path)\n\
-          \            print(f\"File {pt_object_name} downloaded successfully to {pt_local_file_path}.\"\
-          )\n        except S3Error as exc:\n            print(f\"Error occurred:\
-          \ {exc}\")\n\n        try:\n            # Download the file from MinIO\n\
-          \            client.fget_object(bucket_name, model_object_name, model_local_file_path)\n\
-          \            print(f\"File {model_object_name} downloaded successfully to\
-          \ {model_local_file_path}.\")\n        except S3Error as exc:\n        \
-          \    print(f\"Error occurred: {exc}\")\n\n        model_pt_source_path =\
-          \ 'model.pt'\n        model_store_dest_path = \"/pv/model-store/youtubegoes5g/\"\
-          \n\n        cp_pt_result = copy_file_or_dir(core_v1, \n                \
-          \                        kserve_namespace, \n                          \
-          \              model_store_pod_name, \n                                \
-          \        model_store_pod_container_name, \n                            \
-          \            model_pt_source_path, \n                                  \
-          \      model_store_dest_path, \n                                       \
-          \ to_pod=True)\n\n        model_py_source_path = 'model.py'\n\n        cp_py_result\
-          \ = copy_file_or_dir(core_v1, \n                                       \
-          \ kserve_namespace, \n                                        model_store_pod_name,\
-          \ \n                                        model_store_pod_container_name,\
-          \ \n                                        model_py_source_path, \n   \
-          \                                     model_store_dest_path, \n        \
-          \                                to_pod=True)\n\n        prop_source_path\
-          \ = f'{github_cloned_dir}/model-archiver/model-store/properties.json'\n\
+          \            )\n            return client\n\n        def upload_file(client,\
+          \ bucket_name, object_name, filepath):\n            # Create the bucket\
+          \ if it does not exist\n            if not client.bucket_exists(bucket_name):\n\
+          \                client.make_bucket(bucket_name)\n                create_bucket_result\
+          \ = f\"Successfully created bucket: {bucket_name}\"\n            else:\n\
+          \                create_bucket_result = f\"Bucket {bucket_name} already\
+          \ exists\"\n\n            try:\n                # Upload the file to the\
+          \ specified path in the bucket\n                client.fput_object(bucket_name,\
+          \ object_name, filepath)\n                return (f'Successfully uploaded\
+          \ {filepath} to {bucket_name}/{object_name}')\n\n            except Exception\
+          \ as e:\n                # Log and raise any upload errors\n           \
+          \     raise Exception(f'Failed to upload model to Minio: {e}')\n\n     \
+          \   # minio_url = MINIO_URL\n        # minio_access_key = MINIO_ACCESS_KEY\n\
+          \        # minio_secret_key = MINIO_SECRET_KEY\n        # bucket_name =\
+          \ MINIO_MODEL_BUCKET_NAME\n        pt_object_name = 'model-store/youtubegoes5g/model.pt'\n\
+          \        model_object_name = 'model-store/youtubegoes5g/model.py'\n    \
+          \    pt_local_file_path = 'model.pt'\n        model_local_file_path = 'model.py'\n\
+          \n        # Initialize the MinIO client\n        client = minio_setup(minio_url,\
+          \ minio_access_key, minio_secret_key)\n\n        try:\n            # Download\
+          \ the file from MinIO\n            client.fget_object(bucket_name, pt_object_name,\
+          \ pt_local_file_path)\n            print(f\"File {pt_object_name} downloaded\
+          \ successfully to {pt_local_file_path}.\")\n        except S3Error as exc:\n\
+          \            print(f\"Error occurred: {exc}\")\n\n        try:\n       \
+          \     # Download the file from MinIO\n            client.fget_object(bucket_name,\
+          \ model_object_name, model_local_file_path)\n            print(f\"File {model_object_name}\
+          \ downloaded successfully to {model_local_file_path}.\")\n        except\
+          \ S3Error as exc:\n            print(f\"Error occurred: {exc}\")\n\n   \
+          \     model_pt_source_path = 'model.pt'\n        model_store_dest_path =\
+          \ \"/pv/model-store/youtubegoes5g/\"\n\n        cp_pt_result = copy_file_or_dir(core_v1,\
+          \ \n                                        kserve_namespace, \n       \
+          \                                 model_store_pod_name, \n             \
+          \                           model_store_pod_container_name, \n         \
+          \                               model_pt_source_path, \n               \
+          \                         model_store_dest_path, \n                    \
+          \                    to_pod=True)\n\n        model_py_source_path = 'model.py'\n\
+          \n        cp_py_result = copy_file_or_dir(core_v1, \n                  \
+          \                      kserve_namespace, \n                            \
+          \            model_store_pod_name, \n                                  \
+          \      model_store_pod_container_name, \n                              \
+          \          model_py_source_path, \n                                    \
+          \    model_store_dest_path, \n                                        to_pod=True)\n\
+          \n        prop_source_path = f'{github_cloned_dir}/model-archiver/model-store/properties.json'\n\
           \        model_prop_dest_path = \"/pv/model-store/\"\n\n        cp_prop_result\
           \ = copy_file_or_dir(core_v1, \n                                       \
           \   kserve_namespace, \n                                          model_store_pod_name,\
@@ -655,7 +666,10 @@ deploymentSpec:
           \        try:\n            api_response = core_v1.delete_namespaced_pod(model_store_pod_name,\
           \ kserve_namespace)\n            print(api_response)\n        except ApiException\
           \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
-          \ %s\\n\" % e)\n\n        # Create model archiver pod\n        mar_yaml_dir\
+          \ %s\\n\" % e)\n\n        # Upload config.properties to minio for IS\n \
+          \       config_object_name = \"model-store/config/config.properties\"\n\
+          \        up_config_result = upload_file(client, bucket_name, mar_object_name,\
+          \ config_source_path)\n\n        # Create model archiver pod\n        mar_yaml_dir\
           \ = f'{github_cloned_dir}/model-archiver/manifests/'\n        mar_pod_name\
           \ = \"margen-pod\"\n        mar_pod_container_name = \"margen-container\"\
           \n        mar_pod_label = \"service.istio.io/canonical-name=margen-pod\"\
@@ -675,22 +689,10 @@ deploymentSpec:
           \                      mar_pod_container_name, \n                      \
           \                   mar_source_path, \n                                \
           \         mar_dest_path, \n                                         to_pod=False)\n\
-          \n        # Upload mar file to minio\n\n        def upload_file(client,\
-          \ bucket_name, object_name, filepath):\n            # Create the bucket\
-          \ if it does not exist\n            if not client.bucket_exists(bucket_name):\n\
-          \                client.make_bucket(bucket_name)\n                create_bucket_result\
-          \ = f\"Successfully created bucket: {bucket_name}\"\n            else:\n\
-          \                create_bucket_result = f\"Bucket {bucket_name} already\
-          \ exists\"\n\n            try:\n                # Upload the file to the\
-          \ specified path in the bucket\n                client.fput_object(bucket_name,\
-          \ object_name, filepath)\n                return (f'Successfully uploaded\
-          \ {filepath} to {bucket_name}/{object_name}')\n\n            except Exception\
-          \ as e:\n                # Log and raise any upload errors\n           \
-          \     raise Exception(f'Failed to upload model to Minio: {e}')\n\n     \
-          \   mar_object_name = \"model-store/youtubegoes5g.mar\"\n        mar_filepath\
-          \ = './youtubegoes5g.mar'\n\n        up_mar_result = upload_file(client,\
-          \ bucket_name, mar_object_name, mar_filepath)\n\n        # Delete margen\
-          \ pod\n        try:\n            api_response = core_v1.delete_namespaced_pod(mar_pod_name,\
+          \n        # Upload mar file to minio\n        mar_object_name = \"model-store/youtubegoes5g.mar\"\
+          \n        mar_filepath = './youtubegoes5g.mar'\n\n        up_mar_result\
+          \ = upload_file(client, bucket_name, mar_object_name, mar_filepath)\n\n\
+          \        # Delete margen pod\n        try:\n            api_response = core_v1.delete_namespaced_pod(mar_pod_name,\
           \ kserve_namespace)\n            print(api_response)\n        except ApiException\
           \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
           \ %s\\n\" % e)\n\n        with open(mar_gen_cond.path, 'w') as f:\n    \
