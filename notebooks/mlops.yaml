@@ -663,12 +663,11 @@ deploymentSpec:
           \ kserve_namespace)\n            print(api_response)\n        except ApiException\
           \ as e:\n            print(\"Exception when calling CoreV1Api->delete_namespaced_pod:\
           \ %s\\n\" % e)\n\n        # Upload config.properties to minio for IS\n \
-          \       config_object_name = \"model-store/config/config.properties\"\n\
-          \        up_config_result = upload_file(client, bucket_name, config_object_name,\
-          \ config_source_path)\n\n        # Create model archiver pod\n        mar_yaml_dir\
-          \ = f'{github_cloned_dir}/model-archiver/manifests/'\n        mar_pod_name\
-          \ = \"margen-pod\"\n        mar_pod_container_name = \"margen-container\"\
-          \n        mar_pod_label = \"service.istio.io/canonical-name=margen-pod\"\
+          \       config_object_name = \"config/config.properties\"\n        up_config_result\
+          \ = upload_file(client, bucket_name, config_object_name, config_source_path)\n\
+          \n        # Create model archiver pod\n        mar_yaml_dir = f'{github_cloned_dir}/model-archiver/manifests/'\n\
+          \        mar_pod_name = \"margen-pod\"\n        mar_pod_container_name =\
+          \ \"margen-container\"\n        mar_pod_label = \"service.istio.io/canonical-name=margen-pod\"\
           \n\n        try:\n            margen_result = utils.create_from_directory(k8s_client,\
           \ mar_yaml_dir, verbose=True)\n        except Exception as e:\n        \
           \    print(e)\n\n        # Wait for pods to run before exec\n        wait_pod(core_v1,\
