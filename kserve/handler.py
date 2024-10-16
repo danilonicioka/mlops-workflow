@@ -1,51 +1,94 @@
-import io
-from ts.torch_handler.base_handler import BaseHandler
-from torchvision import transforms
-from PIL import Image
-from mnist import Net
 import torch
+from ts.torch_handler.base_handler import BaseHandler
 import json
-import os
+import torch.nn as nn
 
-class MNISTHandler(BaseHandler):
-
+class InterruptionModel(nn.Module):
     def __init__(self):
-        super(MNISTHandler, self).__init__()
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))
-            ])
+        super().__init__()
+        self.layer_1 = nn.Linear(in_features=29, out_features=200)
+        self.layer_2 = nn.Linear(in_features=200, out_features=100)
+        self.layer_3 = nn.Linear(in_features=100, out_features=1)
+        self.relu = nn.ReLU()
 
-    def preprocess_one_image(self, req):
-        """
-        Process one single image.
-        """
-        # get image from the request
-        image = req.get("data")
-        if image is None:
-            image = req.get("body")
-         # create a stream from the encoded image
-        image = Image.open(io.BytesIO(image))
-        image = self.transform(image)
-        # add batch dim
-        image = image.unsqueeze(0)
-        return image
+    def forward(self, x):
+        return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
 
-    def preprocess(self, requests):
-        """
-        Process all the images from the requests and batch them in a Tensor.
-        """
-        images = [self.preprocess_one_image(req) for req in requests]
-        images = torch.cat(images)
-        return images
+class CustomModelHandler(BaseHandler):
+    """
+    Custom handler for TorchServe to process input features for the model
+    and return predictions.
+    """
 
+    def initialize(self, context):
+        """This method initializes the model and loads artifacts"""
+        self.manifest = context.manifest
+        model_dir = context.system_properties.get("model_dir")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Load the model
+        self.model = InterruptionModel()  # Assuming the model is defined inline
+        self.model.load_state_dict(torch.load(f"{model_dir}/model.pth", map_location=self.device))
+        self.model.to(self.device)
+        self.model.eval()
 
-    def postprocess(self, data):
-        """The post process of MNIST converts the predicted output response to a label.
-        Args:
-            data (list): The predicted output from the Inference with probabilities is passed
-            to the post-process function
-        Returns:
-            list : A list of dictionaries with predictions and explanations is returned
+    def preprocess(self, data):
         """
-        return data.argmax(1).tolist()
+        Preprocess the input data before passing it to the model.
+        The input data should be in the format:
+        CQI1, CQI2, CQI3, cSTD CQI, cMajority, c25 P, c50 P, c75 P,
+        RSRP1, RSRP2, RSRP3, pMajority, p25 P, p50 P, p75 P,
+        RSRQ1, RSRQ2, RSRQ3, qMajority, q25 P, q50 P, q75 P,
+        SNR1, SNR2, SNR3, sMajority, s25 P, s50 P, s75 P
+        """
+        try:
+            # Extract the input data from the request
+            data = data[0].get('body') if isinstance(data, list) else data.get('body')
+            input_json = json.loads(data)
+
+            # Ensure input order matches the expected feature order
+            features = [
+                input_json['CQI1'], input_json['CQI2'], input_json['CQI3'], input_json['cSTD CQI'],
+                input_json['cMajority'], input_json['c25 P'], input_json['c50 P'], input_json['c75 P'],
+                input_json['RSRP1'], input_json['RSRP2'], input_json['RSRP3'], input_json['pMajority'],
+                input_json['p25 P'], input_json['p50 P'], input_json['p75 P'],
+                input_json['RSRQ1'], input_json['RSRQ2'], input_json['RSRQ3'], input_json['qMajority'],
+                input_json['q25 P'], input_json['q50 P'], input_json['q75 P'],
+                input_json['SNR1'], input_json['SNR2'], input_json['SNR3'], input_json['sMajority'],
+                input_json['s25 P'], input_json['s50 P'], input_json['s75 P']
+            ]
+
+            # Convert input data to tensor and reshape as necessary
+            input_tensor = torch.tensor([features], dtype=torch.float32).to(self.device)
+
+        except Exception as e:
+            raise ValueError(f"Error during preprocessing: {str(e)}")
+
+        return input_tensor
+
+    def inference(self, data):
+        """
+        Perform inference on the preprocessed data and return the prediction.
+        """
+        with torch.no_grad():
+            output = self.model(data)
+        return output
+
+    def postprocess(self, inference_output):
+        """
+        Post-process the model output to return a response.
+        """
+        try:
+            # Convert the output tensor to a JSON-compatible format
+            result = inference_output.cpu().numpy().tolist()
+            return [result]
+
+        except Exception as e:
+            raise ValueError(f"Error during postprocessing: {str(e)}")
+
+    def handle(self, data, context):
+        """
+        Main handle function for TorchServe.
+        """
+        preprocessed_data = self.preprocess(data)
+        inference_output = self.inference(preprocessed_data)
+        return self.postprocess(inference_output)
