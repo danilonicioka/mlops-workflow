@@ -12,12 +12,12 @@ GITHUB_CLONED_DIR = "mlops-workflow"
 GITHUB_DVC_BRANCH = "dvc"
 GITHUB_MAIN_BRANCH = "main"
 
-# Kubeflow variables
-KUBEFLOW_PIPELINE_NAME = "mlops"
-KUBEFLOW_HOST_URL = "http://ml-pipeline.kubeflow:8888"  # KFP host URL
-KUBEFLOW_PIPELINE_ID="7451916e-eee8-4c14-ad5f-8dee5aa61e3b"
-with open(os.environ['KF_PIPELINES_SA_TOKEN_PATH'], "r") as f:
-    KUBEFLOW_TOKEN = f.read()
+# # Kubeflow variables
+# KUBEFLOW_PIPELINE_NAME = "mlops"
+# KUBEFLOW_HOST_URL = "http://ml-pipeline.kubeflow:8888"  # KFP host URL
+# KUBEFLOW_PIPELINE_ID="7451916e-eee8-4c14-ad5f-8dee5aa61e3b"
+# with open(os.environ['KF_PIPELINES_SA_TOKEN_PATH'], "r") as f:
+#     KUBEFLOW_TOKEN = f.read()
 
 # DVC variables
 DVC_REMOTE_DB = "minio_remote"
