@@ -12,7 +12,7 @@ GITHUB_CLONED_DIR = "mlops-workflow"
 GITHUB_DVC_BRANCH = "dvc"
 GITHUB_MAIN_BRANCH = "main"
 
-# # Kubeflow variables
+# Kubeflow variables
 # KUBEFLOW_PIPELINE_NAME = "mlops"
 # KUBEFLOW_HOST_URL = "http://ml-pipeline.kubeflow:8888"  # KFP host URL
 # KUBEFLOW_PIPELINE_ID="7451916e-eee8-4c14-ad5f-8dee5aa61e3b"
@@ -121,9 +121,7 @@ X = df[['CQI1', 'CQI2', 'CQI3', 'cSTD CQI',
 
 y = df['Stall'].values
 
-import sklearn
 from sklearn.model_selection import train_test_split
-import imblearn
 from imblearn.over_sampling import SMOTE
 
 oversample = SMOTE()
@@ -262,5 +260,5 @@ target_names = ['No-Stall', 'Stall']
 print(classification_report(true_labels, predictions, target_names=target_names))
 
 # Save model
-model_path = "/tmp/model.pt"
+model_path = "model.pt"
 torch.save(model.state_dict(), model_path)
