@@ -1,5 +1,25 @@
 import os
 from dotenv import load_dotenv
+import os
+import requests
+import logging
+import pandas as pd
+import numpy as np
+from mlem.api import save
+import torch
+import numpy as np
+from torch import nn
+from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from torch import nn
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score,fbeta_score
 
 # Load environment variables from env file
 load_dotenv('env')
@@ -61,9 +81,6 @@ MAR_POD_CONTAINER_NAME = "margen-container"
 MAR_OBJECT_NAME = "model-store/youtubegoes5g.mar"
 K8S_API_TOKEN = os.getenv("K8S_API_TOKEN")
 
-import os
-import requests
-import logging
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,6 +89,22 @@ MODEL_INIT_DATASET_URL = 'https://raw.githubusercontent.com/razaulmustafa852/you
 
 file_url = MODEL_INIT_DATASET_URL
 local_file_path = DVC_FILE_NAME
+
+# Build model with non-linear activation function
+class InteruptionModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer_1 = nn.Linear(in_features=29, out_features=200)
+        self.layer_2 = nn.Linear(in_features=200, out_features=100)
+        self.layer_3 = nn.Linear(in_features=100, out_features=1)
+        self.relu = nn.ReLU() # <- add in ReLU activation function
+        # Can also put sigmoid in the model
+        # This would mean you don't need to use it on the predictions
+        # self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+      # Intersperse the ReLU activation function between layers
+       return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
 
 try:
     # Request the file content
@@ -86,13 +119,6 @@ except requests.RequestException as e:
     # Log and raise any download errors
     logger.error(f"Failed to download file: {e}")
     raise
-
-import pandas as pd
-import numpy as np
-from mlem.api import save
-import torch
-import numpy as np
-from torch import nn
 
 # load data
 df = pd.read_csv(local_file_path)
@@ -121,20 +147,14 @@ X = df[['CQI1', 'CQI2', 'CQI3', 'cSTD CQI',
 
 y = df['Stall'].values
 
-from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import SMOTE
-
 oversample = SMOTE()
 X, y = oversample.fit_resample(X, y)
 
-from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
 X = torch.from_numpy(X).type(torch.float32)
 y = torch.from_numpy(y).type(torch.float32)
-
-from sklearn.model_selection import train_test_split
 
 X_train, X_test, y_train, y_test = train_test_split(X,
                                                     y,
@@ -143,23 +163,6 @@ X_train, X_test, y_train, y_test = train_test_split(X,
 )
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# Build model with non-linear activation function
-from torch import nn
-class InteruptionModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.layer_1 = nn.Linear(in_features=29, out_features=200)
-        self.layer_2 = nn.Linear(in_features=200, out_features=100)
-        self.layer_3 = nn.Linear(in_features=100, out_features=1)
-        self.relu = nn.ReLU() # <- add in ReLU activation function
-        # Can also put sigmoid in the model
-        # This would mean you don't need to use it on the predictions
-        # self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-      # Intersperse the ReLU activation function between layers
-       return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
 
 model = InteruptionModel().to(device)
 
@@ -179,7 +182,6 @@ epochs = 3500
 # Put all data on target device
 X_train, y_train = X_train.to(device), y_train.to(device)
 X_test, y_test = X_test.to(device), y_test.to(device)
-
 
 for epoch in range(epochs):
     # 1. Forward pass
@@ -228,13 +230,6 @@ if device == "cuda":
 else:
   predictions = y_preds.numpy()
   true_labels = y_test.numpy()
-
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
-from sklearn.metrics import precision_score
-from sklearn.metrics import recall_score
-from sklearn.metrics import f1_score,fbeta_score
 
 print("=== Confusion Matrix ===")
 print(confusion_matrix(true_labels, predictions))
