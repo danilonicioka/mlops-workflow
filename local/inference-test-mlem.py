@@ -3,10 +3,10 @@ import pandas as pd
 import torch
 import numpy as np
 
-model = load("models/youtubegoes5g")  # RandomForestClassifier
+model = load("/home/danilo/tcc/mlops-workflow/local/models/youtubegoes5g")  # RandomForestClassifier
 
 # Step 1: Read the CSV file and drop the specified columns
-sample = pd.read_csv('dataset.csv', nrows=1).drop(columns=['Stall', 'ID', 'Quality', 'Time'], errors='ignore')
+sample = pd.read_csv('/home/danilo/tcc/mlops-workflow/data/external/dataset.csv', nrows=1).drop(columns=['Stall', 'ID', 'Quality', 'Time'], errors='ignore')
 
 # Step 2: Replace ' ', '-', and np.nan with 0
 sample = sample.replace([' ', '-', np.nan], 0)
@@ -23,6 +23,6 @@ first_sample_tensor = torch.tensor(first_sample, dtype=torch.float32)
 # Display the tensor
 print("First Sample Tensor:", first_sample_tensor)
 
-y_pred = model.predict_proba(first_sample_tensor)
+y_pred = model.forward(first_sample_tensor)
 
 print(y_pred)
