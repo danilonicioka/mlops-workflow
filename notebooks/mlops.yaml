@@ -626,8 +626,16 @@ deploymentSpec:
           \        model_store_pod_container_name, \n                            \
           \            model_pt_source_path, \n                                  \
           \      model_store_dest_path, \n                                       \
-          \ to_pod=True)\n\n        # cp model.py file to model store pod\n      \
-          \  model_py_source_path =  f'{github_cloned_dir}/model-archiver/model-store/youtubegoes5g/model.py'\n\
+          \ to_pod=True)\n\n        # cp handler file to model store pod\n       \
+          \ model_handler_source_path = f'{github_cloned_dir}/model-archiver/model-store/youtubegoes5g/custom_handler.py'\n\
+          \n        cp_handler_result = copy_file_or_dir(core_v1, \n             \
+          \                                kserve_namespace, \n                  \
+          \                           model_store_pod_name, \n                   \
+          \                          model_store_pod_container_name, \n          \
+          \                                   model_handler_source_path, \n      \
+          \                                       model_store_dest_path, \n      \
+          \                                       to_pod=True)\n\n        # cp model.py\
+          \ file to model store pod\n        model_py_source_path =  f'{github_cloned_dir}/model-archiver/model-store/youtubegoes5g/model.py'\n\
           \n        cp_py_result = copy_file_or_dir(core_v1, \n                  \
           \                      kserve_namespace, \n                            \
           \            model_store_pod_name, \n                                  \
