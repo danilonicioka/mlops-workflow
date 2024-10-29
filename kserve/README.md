@@ -1,6 +1,6 @@
 # Commands to test kserve manually
 
-torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file model-store/youtubegoes5g/model.py --serialized-file model-store/youtubegoes5g/model_trained_artifact.pt --handler model-store/youtubegoes5g/handler.py
+torch-model-archiver --model-name youtubegoes5g --version 1.0 --model-file ../model-archiver/model-store/youtubegoes5g/model.py --serialized-file ../model-archiver/model-store/youtubegoes5g/model.pt --handler handler.py
 
 kubectl create namespace kserve-test
 
@@ -15,6 +15,6 @@ kubectl exec -it model-store-pod -c model-store -- mkdir /pv/model-store/
 kubectl exec -it model-store-pod -c model-store -- mkdir /pv/config/
 # Copy files the path
 kubectl cp youtubegoes5g.mar model-store-pod:/pv/model-store/ -c model-store
-kubectl cp config.properties model-store-pod:/pv/config/ -c model-store
+kubectl cp ../model-archiver/config/config.properties model-store-pod:/pv/config/ -c model-store
 
-k apply -f is_kserve.yml -n kserve-test
+k apply -f is.yml -n kserve-test
