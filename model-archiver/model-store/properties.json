@@ -5,7 +5,7 @@
     "model-file": "model.py",
     "serialized-file": "model.pt",
     "extra-files": "",
-    "handler": "base_handler",
+    "handler": "custom_handler.py",
     "min-workers" : 1,
     "max-workers": 5,
     "batch-size": 1,
