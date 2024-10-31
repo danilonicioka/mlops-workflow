@@ -1,4 +1,4 @@
-kfp==2.7.0
+kfp
 python-dotenv
 dvc[s3]
 gitpython

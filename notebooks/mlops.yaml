@@ -652,14 +652,15 @@ deploymentSpec:
           \                                     model_prop_dest_path, \n         \
           \                                 to_pod=True)\n\n        # cp config.properties\
           \ file to model store pod\n        config_source_path = f'{github_cloned_dir}/model-archiver/config/config.properties'\n\
-          \        config_dest_path = \"/pv/config/\"\n\n        cp_conf_result =\
-          \ copy_file_or_dir(core_v1, \n                                         \
-          \ kserve_namespace, \n                                          model_store_pod_name,\
-          \ \n                                          model_store_pod_container_name,\
-          \ \n                                          config_source_path, \n   \
-          \                                       config_dest_path, \n           \
-          \                               to_pod=True)\n\n        # cp margen script\
-          \ file to model store pod\n        scripts_source_path = f'{github_cloned_dir}/model-archiver/scripts/margen.sh'\n\
+          \    #         config_dest_path = \"/pv/config/\"\n\n    #         cp_conf_result\
+          \ = copy_file_or_dir(core_v1, \n    #                                  \
+          \         kserve_namespace, \n    #                                    \
+          \       model_store_pod_name, \n    #                                  \
+          \         model_store_pod_container_name, \n    #                      \
+          \                     config_source_path, \n    #                      \
+          \                     config_dest_path, \n    #                        \
+          \                   to_pod=True)\n\n        # cp margen script file to model\
+          \ store pod\n        scripts_source_path = f'{github_cloned_dir}/model-archiver/scripts/margen.sh'\n\
           \        scripts_dest_path = \"/pv/scripts/\"\n\n        cp_scripts_result\
           \ = copy_file_or_dir(core_v1, \n                                       \
           \   kserve_namespace, \n                                          model_store_pod_name,\
@@ -680,7 +681,7 @@ deploymentSpec:
           \ mar_yaml_dir, verbose=True)\n        except Exception as e:\n        \
           \    print(e)\n\n        # Wait for pods to run before exec\n        wait_pod(core_v1,\
           \ kserve_namespace, mar_pod_label, mar_pod_name, 120)\n\n        # Exec\
-          \ mar gen in a script\n        mar_gen_command = \"bash /home/model-server/scripts/margen.sh\"\
+          \ mar gen in a script\n        mar_gen_command = \"bash scripts/margen.sh\"\
           \n        mar_gen_result = exec_commands(core_v1, \n                   \
           \                    kserve_namespace, \n                              \
           \         mar_pod_name, \n                                       mar_pod_container_name,\
