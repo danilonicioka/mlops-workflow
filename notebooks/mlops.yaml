@@ -681,40 +681,41 @@ deploymentSpec:
           \ mar_yaml_dir, verbose=True)\n        except Exception as e:\n        \
           \    print(e)\n\n        # Wait for pods to run before exec\n        wait_pod(core_v1,\
           \ kserve_namespace, mar_pod_label, mar_pod_name, 120)\n\n        # Exec\
-          \ mar gen in a script\n        mar_gen_command = \"bash /home/model-server/scripts/margen.sh\"\
+          \ mar gen in a script\n        mar_gen_command = \"bash scripts/margen.sh\"\
           \n        mar_gen_result = exec_commands(core_v1, \n                   \
           \                    kserve_namespace, \n                              \
           \         mar_pod_name, \n                                       mar_pod_container_name,\
-          \ \n                                       mar_gen_command)\n\n        #\
-          \ Copy mar file to local, wait a few seconds for .mar to be created\n  \
-          \      mar_source_path = \"youtubegoes5g.mar\"\n        mar_dest_path =\
-          \ \"./\"\n        max_retries = 10\n        retry_interval = 5  # seconds\n\
-          \n        file_exists = False\n        for attempt in range(max_retries):\n\
-          \            # Run command to check if the .mar file exists\n          \
-          \  check_command = f\"ls {mar_source_path}\"\n            check_result =\
-          \ exec_commands(core_v1, \n                                         kserve_namespace,\
-          \ \n                                         mar_pod_name, \n          \
-          \                               mar_pod_container_name, \n             \
-          \                            check_command)\n\n            if \"No such\
-          \ file or directory\" not in check_result:\n                file_exists\
-          \ = True\n                break\n            else:\n                time.sleep(retry_interval)\n\
-          \n        if file_exists:\n            # Step 3: Copy the .mar file to local\
-          \ if it exists\n            mar_cp_result = copy_file_or_dir(core_v1, \n\
-          \                                             kserve_namespace, \n     \
-          \                                        mar_pod_name, \n              \
-          \                               mar_pod_container_name, \n             \
-          \                                mar_source_path, \n                   \
-          \                          mar_dest_path, \n                           \
-          \                  to_pod=False)\n        else:\n            print(\"Error:\
-          \ .mar file was not found after multiple attempts.\")\n\n#         # Copy\
-          \ mar file to local\n#         mar_source_path = \"youtubegoes5g.mar\"\n\
-          #         mar_dest_path = \"./\"\n\n#         mar_cp_result = copy_file_or_dir(core_v1,\
-          \ \n#                                          kserve_namespace, \n#   \
-          \                                       mar_pod_name, \n#              \
-          \                            mar_pod_container_name, \n#               \
-          \                           mar_source_path, \n#                       \
-          \                   mar_dest_path, \n#                                 \
-          \         to_pod=False)\n\n        # Upload mar file to minio\n        mar_object_name\
+          \ \n                                       mar_gen_command)\n\n#       \
+          \  # Copy mar file to local, wait a few seconds for .mar to be created\n\
+          #         mar_source_path = \"youtubegoes5g.mar\"\n#         mar_dest_path\
+          \ = \"./\"\n#         max_retries = 10\n#         retry_interval = 5  #\
+          \ seconds\n\n#         file_exists = False\n#         for attempt in range(max_retries):\n\
+          #             # Run command to check if the .mar file exists\n#        \
+          \     check_command = f\"ls {mar_source_path}\"\n#             check_result\
+          \ = exec_commands(core_v1, \n#                                         \
+          \ kserve_namespace, \n#                                          mar_pod_name,\
+          \ \n#                                          mar_pod_container_name, \n\
+          #                                          check_command)\n\n#         \
+          \    if check_result is not None and \"No such file\" not in check_result:\n\
+          #                 file_exists = True\n#                 break\n#       \
+          \      else:\n#                 time.sleep(retry_interval)\n\n#        \
+          \ if file_exists:\n#             # Step 3: Copy the .mar file to local if\
+          \ it exists\n#             mar_cp_result = copy_file_or_dir(core_v1, \n\
+          #                                              kserve_namespace, \n#   \
+          \                                           mar_pod_name, \n#          \
+          \                                    mar_pod_container_name, \n#       \
+          \                                       mar_source_path, \n#           \
+          \                                   mar_dest_path, \n#                 \
+          \                             to_pod=False)\n#         else:\n#        \
+          \     print(\"Error: .mar file was not found after multiple attempts.\"\
+          )\n\n        # Copy mar file to local\n        mar_source_path = \"youtubegoes5g.mar\"\
+          \n        mar_dest_path = \"./\"\n\n        mar_cp_result = copy_file_or_dir(core_v1,\
+          \ \n                                          kserve_namespace, \n     \
+          \                                     mar_pod_name, \n                 \
+          \                         mar_pod_container_name, \n                   \
+          \                       mar_source_path, \n                            \
+          \              mar_dest_path, \n                                       \
+          \   to_pod=False)\n\n        # Upload mar file to minio\n        mar_object_name\
           \ = \"model-store/youtubegoes5g.mar\"\n        mar_filepath = './youtubegoes5g.mar'\n\
           \n        up_mar_result = upload_file(client, bucket_name, mar_object_name,\
           \ mar_filepath)\n\n        # Delete margen pod\n        try:\n         \
