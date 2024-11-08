@@ -1,5 +1,5 @@
 export INGRESS_HOST=localhost
-export INGRESS_PORT=8080
+export INGRESS_PORT=8085
 MODEL_NAME=youtubegoes5g
 SERVICE_HOSTNAME=$(kubectl get inferenceservice youtubegoes5g -o jsonpath='{.status.url}' | cut -d "/" -f 3)
 
