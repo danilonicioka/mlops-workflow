@@ -1,0 +1,23 @@
+# Default values for torchserve helm chart.
+
+torchserve_image: pytorch/torchserve:0.12.0-cpu
+
+namespace: torchserve
+
+torchserve:
+  management_port: 8081
+  inference_port: 8080
+  metrics_port: 8082
+  grpc_inference_port: 7070
+
+  pvd_mount: /home/model-server/shared/
+  n_gpu: 0
+  n_cpu: 1
+  memory_limit: 4Gi
+  memory_request: 1Gi
+
+deployment:
+  replicas: 3
+
+persistentVolume:
+  name: model-store-claim
