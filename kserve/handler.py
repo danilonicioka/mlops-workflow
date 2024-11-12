@@ -60,37 +60,20 @@ class ModelHandler(BaseHandler):
             # Log the incoming data for debugging
             logger.info(f"Received data: {data}")
 
-            # Extract the instances part
-            input_data = data[0].get("data") or data[0].get("body")
+            # Directly access the 'data' field in the received structure
+            instances = data[0].get("data")
 
-            if input_data is None:
-                raise ValueError("Input data is missing.")
+            if instances is None:
+                raise ValueError("No 'data' field found in the input.")
 
-            if isinstance(input_data, (bytes, str)):
-                input_data = json.loads(input_data)  # Decode if input_data is a JSON string
-
-            if "instances" not in input_data:
-                raise ValueError("Key 'instances' not found in input data.")
-
-            # Extract data from the 'instances' field
-            instances = input_data["instances"]
-
-            # Assuming each instance contains a 'data' field with the actual feature values
-            features = [instance.get("data") for instance in instances]
-
-            if not features:
-                raise ValueError("No features found in 'data' field.")
-
-            # Convert the data to a tensor
-            tensor_data = torch.tensor(features, dtype=torch.float32).to(self.device)
+            # Convert the 'data' field to a tensor
+            tensor_data = torch.tensor([instances], dtype=torch.float32).to(self.device)
             logger.info("Input data preprocessed successfully")
             return tensor_data
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decoding error: {str(e)}")
-            raise ValueError("Invalid JSON format.")
         except Exception as e:
             logger.error(f"Error during preprocessing: {str(e)}")
             raise ValueError("Failed to preprocess input data")
+
 
     def inference(self, model_input):
         """
