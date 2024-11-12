@@ -3,6 +3,7 @@ import torch
 import os
 from torch import nn
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +57,17 @@ class ModelHandler(BaseHandler):
         Transform raw input into model input data.
         """
         try:
+            # Log the incoming data for debugging
+            logger.info(f"Received data: {data}")
+
             # Extract the instances part
             input_data = data[0].get("data") or data[0].get("body")
 
             if input_data is None:
                 raise ValueError("Input data is missing.")
+
+            if isinstance(input_data, (bytes, str)):
+                input_data = json.loads(input_data)  # Decode if input_data is a JSON string
 
             if "instances" not in input_data:
                 raise ValueError("Key 'instances' not found in input data.")
@@ -78,6 +85,9 @@ class ModelHandler(BaseHandler):
             tensor_data = torch.tensor(features, dtype=torch.float32).to(self.device)
             logger.info("Input data preprocessed successfully")
             return tensor_data
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decoding error: {str(e)}")
+            raise ValueError("Invalid JSON format.")
         except Exception as e:
             logger.error(f"Error during preprocessing: {str(e)}")
             raise ValueError("Failed to preprocess input data")
