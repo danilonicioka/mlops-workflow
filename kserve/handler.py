@@ -1,3 +1,4 @@
+import json
 from ts.torch_handler.base_handler import BaseHandler
 import torch
 import os
@@ -76,14 +77,22 @@ class ModelHandler(BaseHandler):
         Handle a prediction request.
         """
         try:
-            # Directly parse the JSON data as it’s passed by TorchServe
+            # Parse input data, handle potential JSON issues
             if isinstance(data, list) and len(data) > 0:
-                request_data = data[0].get("body") if "body" in data[0] else data[0]
+                if isinstance(data[0], dict) and "body" in data[0]:
+                    # Attempt to decode body if encoded as bytes
+                    try:
+                        request_data = json.loads(data[0]["body"].decode("utf-8"))
+                    except (json.JSONDecodeError, AttributeError):
+                        request_data = data[0]["body"]
+                else:
+                    request_data = data[0]
             else:
                 raise ValueError("Invalid input data format")
 
+            # Process and run inference on the input data
             model_input = self.preprocess(request_data)
             model_output = self.inference(model_input)
             return self.postprocess(model_output)
-        except ValueError as e:
+        except (ValueError, json.JSONDecodeError) as e:
             return [{"error": str(e)}]
