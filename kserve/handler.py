@@ -5,96 +5,80 @@ from torch import nn
 
 class ModelHandler(BaseHandler):
     def __init__(self):
+        super(ModelHandler, self).__init__()
         self._context = None
         self.initialized = False
-        self.explain = False
-        self.target = 0
+        self.model = None
 
     def initialize(self, context):
         """
-        Initialize model. This will be called during model loading time
-        :param context: Initial context contains model server system properties.
-        :return:
+        Initialize model. This will be called during model loading time.
         """
         self._context = context
 
-        #  load the model
-        self.manifest = context.manifest
-
+        # Load the model
         properties = context.system_properties
         model_dir = properties.get("model_dir")
         self.device = torch.device("cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu")
 
-        # Read model serialize/pt file
-        serialized_file = self.manifest['model']['serializedFile']
+        # Check model file exists and load model state
+        serialized_file = context.manifest['model']['serializedFile']
         model_pt_path = os.path.join(model_dir, serialized_file)
         if not os.path.isfile(model_pt_path):
-            raise RuntimeError("Missing the model.pt file")
+            raise RuntimeError(f"Missing the model file: {model_pt_path}")
 
-        # Build model with non-linear activation function
+        # Define model architecture
         class InterruptionModel(nn.Module):
             def __init__(self):
-                super().__init__()
+                super(InterruptionModel, self).__init__()
                 self.layer_1 = nn.Linear(in_features=29, out_features=200)
                 self.layer_2 = nn.Linear(in_features=200, out_features=100)
                 self.layer_3 = nn.Linear(in_features=100, out_features=1)
-                self.relu = nn.ReLU() # <- add in ReLU activation function
-                # Can also put sigmoid in the model
-                # This would mean you don't need to use it on the predictions
-                # self.sigmoid = nn.Sigmoid()
+                self.relu = nn.ReLU()
 
             def forward(self, x):
-                # Intersperse the ReLU activation function between layers
                 return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
-            
-        model = InterruptionModel()
 
-        self.model = model.load_state_dict(torch.load(model_pt_path, weights_only=True))
-
+        # Initialize and load the model
+        self.model = InterruptionModel().to(self.device)
+        self.model.load_state_dict(torch.load(model_pt_path, map_location=self.device))
+        self.model.eval()
         self.initialized = True
 
     def preprocess(self, data):
         """
         Transform raw input into model input data.
-        :param batch: list of raw requests, should match batch size
-        :return: list of preprocessed model input data
         """
-        # Take the input data and make it inference ready
-        preprocessed_data = data[0].get("data")
-        if preprocessed_data is None:
-            preprocessed_data = data[0].get("body")
+        # Check if data contains expected keys and handle accordingly
+        if not data or not isinstance(data, list):
+            raise ValueError("Data should be a list of dictionaries containing 'data' or 'body' key.")
 
-        tensor_data = torch.tensor(preprocessed_data["instances"], dtype=torch.float32)
+        # Extract input data from the first item in the list
+        input_data = data[0].get("data") or data[0].get("body")
+        if input_data is None or "instances" not in input_data:
+            raise ValueError("Invalid input format, expecting 'data' or 'body' key with 'instances'.")
 
+        # Convert input to tensor
+        tensor_data = torch.tensor(input_data["instances"], dtype=torch.float32).to(self.device)
         return tensor_data
 
     def inference(self, model_input):
         """
-        Internal inference methods
-        :param model_input: transformed model input data
-        :return: list of inference output in NDArray
+        Perform model inference.
         """
-        # Do some inference call to engine here and return output
         with torch.no_grad():
-            return self.model(model_input)
+            output = self.model(model_input)
+        return output
 
     def postprocess(self, inference_output):
         """
-        Return inference result.
-        :param inference_output: list of inference output
-        :return: list of predict results
+        Convert model output to a list of predictions.
         """
-        # Take output from network and post-process to desired format
-        postprocess_output = inference_output
-        return postprocess_output.tolist()
+        return inference_output.cpu().numpy().tolist()
 
     def handle(self, data, context):
         """
-        Invoke by TorchServe for prediction request.
-        Do pre-processing of data, prediction using model and postprocessing of prediciton output
-        :param data: Input data for prediction
-        :param context: Initial context contains model server system properties.
-        :return: prediction output
+        Handle a prediction request.
         """
         model_input = self.preprocess(data)
         model_output = self.inference(model_input)
