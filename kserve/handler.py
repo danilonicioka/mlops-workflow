@@ -81,7 +81,7 @@ class ModelHandler(BaseHandler):
         """
         try:
             with torch.no_grad():
-                output = self.model(model_input)
+                torch.round(torch.sigmoid(self.model(model_input))).squeeze()
             logger.info("Inference performed successfully")
             return output
         except Exception as e:
@@ -93,7 +93,11 @@ class ModelHandler(BaseHandler):
         Convert model output to a list of predictions.
         """
         try:
-            result = inference_output.cpu().numpy().tolist()
+            stall_value = inference_output.cpu().numpy().tolist()
+            if stall_value > 0:
+                result = "Stall"
+            else:
+                result = "No Stall"
             logger.info("Output postprocessed successfully")
             return result
         except Exception as e:
