@@ -1,4 +1,3 @@
-import json
 from ts.torch_handler.base_handler import BaseHandler
 import torch
 import os
@@ -17,7 +16,7 @@ class ModelHandler(BaseHandler):
         """
         self._context = context
 
-        # Load the model
+        #  Load the model
         properties = context.system_properties
         model_dir = properties.get("model_dir")
         self.device = torch.device("cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu")
@@ -50,12 +49,13 @@ class ModelHandler(BaseHandler):
         """
         Transform raw input into model input data.
         """
-        # Extract 'instances' directly from the data input
-        if "instances" not in data:
-            raise ValueError("Invalid input format, expecting 'instances' key.")
+        # Parse and check data
+        input_data = data[0].get("data") or data[0].get("body")
+        if input_data is None or "instances" not in input_data:
+            raise ValueError("Invalid input format, expecting 'data' or 'body' key with 'instances'.")
 
         # Convert input to tensor
-        tensor_data = torch.tensor(data["instances"], dtype=torch.float32).to(self.device)
+        tensor_data = torch.tensor(input_data["instances"], dtype=torch.float32).to(self.device)
         return tensor_data
 
     def inference(self, model_input):
@@ -76,23 +76,6 @@ class ModelHandler(BaseHandler):
         """
         Handle a prediction request.
         """
-        try:
-            # Parse input data, handle potential JSON issues
-            if isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], dict) and "body" in data[0]:
-                    # Attempt to decode body if encoded as bytes
-                    try:
-                        request_data = json.loads(data[0]["body"].decode("utf-8"))
-                    except (json.JSONDecodeError, AttributeError):
-                        request_data = data[0]["body"]
-                else:
-                    request_data = data[0]
-            else:
-                raise ValueError("Invalid input data format")
-
-            # Process and run inference on the input data
-            model_input = self.preprocess(request_data)
-            model_output = self.inference(model_input)
-            return self.postprocess(model_output)
-        except (ValueError, json.JSONDecodeError) as e:
-            return [{"error": str(e)}]
+        model_input = self.preprocess(data)
+        model_output = self.inference(model_input)
+        return self.postprocess(model_output)
