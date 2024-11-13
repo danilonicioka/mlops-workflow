@@ -81,7 +81,7 @@ class ModelHandler(BaseHandler):
         """
         try:
             with torch.no_grad():
-                torch.round(torch.sigmoid(self.model(model_input))).squeeze()
+                output = torch.round(torch.sigmoid(self.model(model_input))).squeeze()
             logger.info("Inference performed successfully")
             return output
         except Exception as e:
