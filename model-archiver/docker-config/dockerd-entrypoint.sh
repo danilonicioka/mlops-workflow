@@ -11,8 +11,15 @@ CONFIG_PATH=$BASE_PATH/config
 touch $CONFIG_PATH/config.properties
 
 cat <<EOF > "$CONFIG_PATH"/config.properties
-inference_address=http://0.0.0.0:8080
-management_address=http://0.0.0.0:8081
+inference_address=http://0.0.0.0:8085
+management_address=http://0.0.0.0:8085
+metrics_address=http://0.0.0.0:8082
+grpc_inference_port=7070
+grpc_management_port=7071
+enable_metrics_api=true
+metrics_format=prometheus
+enable_envvars_config=true
+install_py_dep_per_model=true
 number_of_netty_threads=4
 job_queue_size=100
 model_store="$MODEL_STORE"

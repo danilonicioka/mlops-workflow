@@ -120,6 +120,7 @@ KSERVE_NAMESPACE = "kubeflow-user-example-com"
 KSERVE_SVC_ACC = "sa-minio-kserve"
 #MODEL_URI = "pvc://model-store-claim"
 #MODEL_URI = "minio-service.kubeflow:9000/model-files"
+INFERENCE_URL = "http://localhost:8080/predictions/youtubegoes5g"
 
 ####### Class to access kubeflow from outside the cluster
 
@@ -905,6 +906,38 @@ def append_csv():
         
         # Redirect to the home page
         return redirect(url_for('home'))
+    
+@app.route('/inference')
+def inference_form():
+    """Route to render the inference form page."""
+    return render_template('inference_form.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    """Route to handle inference requests and return predictions."""
+    try:
+        # Get the data type and data payload from the request
+        data_type = request.json.get('dataType')
+        input_data = request.json.get('data')
+
+        # Prepare payload for inference request based on the data type
+        payload = {"instances": input_data['instances']} if data_type == "multiple" else {"instances": [input_data]}
+
+        # Send inference request to the model server
+        response = requests.post(INFERENCE_URL, headers={"Content-Type": "application/json"}, json=payload)
+
+        # Check for successful response
+        if response.status_code == 200:
+            predictions = response.json()
+            return jsonify({"status": "success", "predictions": predictions}), 200
+        else:
+            error_message = response.text
+            return jsonify({"status": "error", "message": error_message}), response.status_code
+
+    except Exception as e:
+        # Handle any unexpected errors
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # Define the template folder (you can change the path as needed)
 app.template_folder = 'templates'

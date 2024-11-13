@@ -3,7 +3,6 @@ import torch
 import os
 from torch import nn
 import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -60,20 +59,19 @@ class ModelHandler(BaseHandler):
             # Log the incoming data for debugging
             logger.info(f"Received data: {data}")
 
-            # Directly access the 'data' field in the received structure
-            instances = data[0].get("data")
+            # Access all instances for batch processing
+            instances = [item.get("data") for item in data if "data" in item]
 
-            if instances is None:
+            if not instances:
                 raise ValueError("No 'data' field found in the input.")
 
-            # Convert the 'data' field to a tensor
-            tensor_data = torch.tensor([instances], dtype=torch.float32).to(self.device)
+            # Convert to tensor for batch processing
+            tensor_data = torch.tensor(instances, dtype=torch.float32).to(self.device)
             logger.info("Input data preprocessed successfully")
             return tensor_data
         except Exception as e:
             logger.error(f"Error during preprocessing: {str(e)}")
             raise ValueError("Failed to preprocess input data")
-
 
     def inference(self, model_input):
         """
@@ -81,6 +79,7 @@ class ModelHandler(BaseHandler):
         """
         try:
             with torch.no_grad():
+                # Use sigmoid for binary classification, rounding to 0 or 1
                 output = torch.round(torch.sigmoid(self.model(model_input))).squeeze()
             logger.info("Inference performed successfully")
             return output
@@ -93,13 +92,11 @@ class ModelHandler(BaseHandler):
         Convert model output to a list of predictions.
         """
         try:
-            stall_value = inference_output.cpu().numpy().tolist()
-            if stall_value > 0:
-                result = "Stall"
-            else:
-                result = "No Stall"
+            # Process each item in the batch
+            predictions = inference_output.cpu().numpy()
+            results = ["Stall" if pred > 0 else "No Stall" for pred in predictions]
             logger.info("Output postprocessed successfully")
-            return result
+            return results
         except Exception as e:
             logger.error(f"Error during postprocessing: {str(e)}")
             raise ValueError("Failed to postprocess output data")

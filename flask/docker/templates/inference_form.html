@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inference Form</title>
+    <style>
+        /* Basic styling for the form */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .form-container {
+            width: 80%;
+            margin: 0 auto;
+            text-align: center;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .response-container {
+            margin-top: 20px;
+        }
+        .predictions {
+            margin-top: 10px;
+            text-align: left;
+        }
+        .input-field {
+            margin-top: 10px;
+        }
+        .select-container {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Inference Data Input</h1>
+    
+    <div class="form-container">
+        <form action="/predict" method="POST" id="inferenceForm">
+            <div class="select-container">
+                <label for="data_type">Select Data Type:</label><br>
+                <select id="data_type" name="data_type">
+                    <option value="single">Single Data</option>
+                    <option value="multiple">Multiple Data</option>
+                </select><br><br>
+            </div>
+
+            <div class="select-container" id="number_of_inputs_container" style="display: none;">
+                <label for="number_of_inputs">Select Number of Inputs:</label><br>
+                <select id="number_of_inputs" name="number_of_inputs">
+                    <option value="2">2 Inputs</option>
+                    <option value="3">3 Inputs</option>
+                    <option value="4">4 Inputs</option>
+                    <option value="5">5 Inputs</option>
+                </select><br><br>
+            </div>
+
+            <div id="data_fields_container">
+                <label for="data_content">Enter Data Values (comma-separated):</label><br>
+                <textarea id="data_content" name="data_content" placeholder="Enter the data values here, e.g. 13, 13, 13, 0, 13, 13..." required></textarea><br>
+            </div>
+
+            <button type="submit">Submit Data</button>
+        </form>
+
+        <div class="response-container" id="response-container" style="display: none;">
+            <h3>Inference Result</h3>
+            <div id="sentData"></div>
+            <div class="predictions" id="predictions"></div>
+        </div>
+    </div>
+
+    <script>
+        // Function to update the visibility of input fields based on data type
+        document.getElementById('data_type').addEventListener('change', function() {
+            var dataType = this.value;
+            var numberOfInputsContainer = document.getElementById('number_of_inputs_container');
+            var dataFieldsContainer = document.getElementById('data_fields_container');
+            
+            if (dataType === 'multiple') {
+                numberOfInputsContainer.style.display = 'block';  // Show the number of inputs dropdown
+                // Default to 2 inputs
+                updateInputFields(2);
+            } else {
+                numberOfInputsContainer.style.display = 'none';  // Hide the number of inputs dropdown
+                // Show a single input for data
+                dataFieldsContainer.innerHTML = `
+                    <label for="data_content">Enter Data Values (comma-separated):</label><br>
+                    <textarea id="data_content" name="data_content" placeholder="Enter the data values here, e.g. 13, 13, 13, 0, 13, 13..." required></textarea><br>
+                `;
+            }
+        });
+
+        // Function to dynamically create input fields based on the number selected
+        document.getElementById('number_of_inputs').addEventListener('change', function() {
+            var numberOfInputs = parseInt(this.value);
+            updateInputFields(numberOfInputs);
+        });
+
+        function updateInputFields(numberOfInputs) {
+            var container = document.getElementById('data_fields_container');
+            container.innerHTML = ''; // Clear existing fields
+
+            for (var i = 0; i < numberOfInputs; i++) {
+                var inputDiv = document.createElement('div');
+                inputDiv.classList.add('input-field');
+                var inputLabel = document.createElement('label');
+                inputLabel.innerHTML = 'Enter Data for Instance ' + (i + 1) + ' (comma-separated):';
+                var inputField = document.createElement('textarea');
+                inputField.setAttribute('name', 'data_content_' + i);
+                inputField.setAttribute('placeholder', 'e.g. 13, 13, 13, 0, 13, 13...');
+                inputField.required = true;
+                inputDiv.appendChild(inputLabel);
+                inputDiv.appendChild(inputField);
+                container.appendChild(inputDiv);
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('inferenceForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            var dataType = document.getElementById('data_type').value;
+            var numberOfInputs = parseInt(document.getElementById('number_of_inputs').value);
+            var dataContent = [];
+
+            // Gather data from all the dynamic text areas
+            for (var i = 0; i < numberOfInputs; i++) {
+                var inputField = document.querySelector('[name="data_content_' + i + '"]');
+                if (inputField && inputField.value.trim()) {
+                    dataContent.push(inputField.value.trim().split(',').map(function(val) { return parseFloat(val.trim()); }));
+                }
+            }
+
+            // Default data if the fields are empty (fallback to example)
+            if (dataContent.length === 0) {
+                if (dataType === "single") {
+                    dataContent = [
+                        [13, 13, 13, 0, 13, 13, 13, 13, -76, -76, -81, -76, -78.5, -76, -76, -7, -7, -12, -7, -9.5, -7, -7, 12, 12, 7, 12, 9.5, 12, 12]
+                    ];
+                } else {
+                    // Fill the number of inputs dynamically with default values
+                    var defaultData = [
+                        [13, 13, 13, 0, 13, 13, 13, 13, -76, -76, -81, -76, -78.5, -76, -76, -7, -7, -12, -7, -9.5, -7, -7, 12, 12, 7, 12, 9.5, 12, 12],
+                        [14, 14, 13, 0, 13, 13, 12, 14, -75, -77, -80, -78, -77.5, -75, -75, -6, -8, -11, -6, -8.5, -6, -7, 11, 11, 8, 11, 8.5, 11, 13],
+                        [12, 12, 14, 1, 12, 14, 12, 13, -77, -78, -82, -75, -76.5, -78, -78, -8, -6, -13, -8, -10.5, -8, -9, 10, 10, 6, 10, 9.5, 10, 11],
+                        [13, 12, 13, 1, 14, 12, 14, 13, -75, -76, -80, -77, -76.5, -75, -75, -5, -6, -14, -6, -8.5, -6, -6.5, 12, 11, 8, 12, 9, 12, 14],
+                        [11, 11, 12, 0, 13, 13, 13, 12, -74, -75, -79, -77, -75, -76, -78, -7, -8, -12, -7, -9, -7, -7, 12, 11, 7, 12, 9, 12, 11]
+                    ];
+                    // Trim to the number of inputs selected
+                    dataContent = defaultData.slice(0, numberOfInputs);
+                }
+            }
+
+            var payload = {
+                instances: dataContent
+            };
+
+            // Send the data to the backend
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Handle the response
+                document.getElementById('response-container').style.display = 'block';
+                document.getElementById('sentData').innerText = "Sent Data: " + JSON.stringify(payload.instances, null, 2);
+                document.getElementById('predictions').innerText = "Predicted Values: " + JSON.stringify(data.predictions, null, 2);
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+
+</body>
+</html>
