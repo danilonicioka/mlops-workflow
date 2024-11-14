@@ -79,7 +79,7 @@ class ModelHandler(BaseHandler):
             inference_list = []
             for tensor_data in model_input:
                 with torch.no_grad():
-                    output = torch.round(torch.sigmoid(model(tensor_data))).squeeze()
+                    output = torch.round(torch.sigmoid(self.model(tensor_data))).squeeze()
                 inference = output.cpu().numpy().tolist()
                 inference_list.append(output)
             logger.info("Inference performed successfully")
