@@ -58,17 +58,15 @@ class ModelHandler(BaseHandler):
         try:
             # Log the incoming data for debugging
             logger.info(f"Received data: {data}")
-
-            # Access all instances for batch processing
-            instances = [item.get("data") for item in data if "data" in item]
-
-            if not instances:
-                raise ValueError("No 'data' field found in the input.")
-
-            # Convert to tensor for batch processing
-            tensor_data = torch.tensor(instances, dtype=torch.float32).to(self.device)
+            
+            tensor_list = []
+            for item in data:
+                tensor_data = torch.tensor([item['data']], dtype=torch.float32)  # Each instance as a tensor
+                tensor_list.append(tensor_data)
+            # Stack all tensors along a new dimension to create a single tensor
+            combined_tensor = torch.cat(tensor_list, dim=0)
             logger.info("Input data preprocessed successfully")
-            return tensor_data
+            return combined_tensor
         except Exception as e:
             logger.error(f"Error during preprocessing: {str(e)}")
             raise ValueError("Failed to preprocess input data")
@@ -78,11 +76,14 @@ class ModelHandler(BaseHandler):
         Perform model inference.
         """
         try:
-            with torch.no_grad():
-                # Use sigmoid for binary classification, rounding to 0 or 1
-                output = torch.round(torch.sigmoid(self.model(model_input))).squeeze()
+            inference_list = []
+            for tensor_data in model_input:
+                with torch.no_grad():
+                    output = torch.round(torch.sigmoid(model(tensor_data))).squeeze()
+                inference = output.cpu().numpy().tolist()
+                inference_list.append(output)
             logger.info("Inference performed successfully")
-            return output
+            return inference_list
         except Exception as e:
             logger.error(f"Error during inference: {str(e)}")
             raise RuntimeError("Inference failed")
@@ -93,10 +94,14 @@ class ModelHandler(BaseHandler):
         """
         try:
             # Process each item in the batch
-            predictions = inference_output.cpu().numpy()
-            results = ["Stall" if pred > 0 else "No Stall" for pred in predictions]
+            result_list = []
+            for result in inference_output:
+                if result > 0:
+                    result_list.append("Stall")
+                else:
+                    result_list.append("No Stall")
             logger.info("Output postprocessed successfully")
-            return results
+            return result_list
         except Exception as e:
             logger.error(f"Error during postprocessing: {str(e)}")
             raise ValueError("Failed to postprocess output data")
