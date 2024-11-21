@@ -69,7 +69,6 @@ class ModelHandler(BaseHandler):
             for item in data:
                 item = scaler.transform([item['data']])
                 tensor_data = torch.tensor(item, dtype=torch.float32)  # Each instance as a tensor
-                tensor_data = torch.tensor([item['data']], dtype=torch.float32)  # Each instance as a tensor
                 tensor_list.append(tensor_data)
             # Stack all tensors along a new dimension to create a single tensor
             combined_tensor = torch.cat(tensor_list, dim=0)
