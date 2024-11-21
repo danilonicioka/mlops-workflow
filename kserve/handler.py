@@ -62,13 +62,13 @@ class ModelHandler(BaseHandler):
             logger.info(f"Received data: {data}")
             
             # Load scaler
-            #scaler = StandardScaler()
-            #scaler = joblib.load('scaler.save')
+            scaler = StandardScaler()
+            scaler = joblib.load('/mnt/models/model-store/youtubegoes5g/scaler.save')
             
             tensor_list = []
             for item in data:
-                #item = scaler.transform([item['data']])
-                #tensor_data = torch.tensor(item, dtype=torch.float32)  # Each instance as a tensor
+                item = scaler.transform([item['data']])
+                tensor_data = torch.tensor(item, dtype=torch.float32)  # Each instance as a tensor
                 tensor_data = torch.tensor([item['data']], dtype=torch.float32)  # Each instance as a tensor
                 tensor_list.append(tensor_data)
             # Stack all tensors along a new dimension to create a single tensor
