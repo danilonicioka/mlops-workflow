@@ -1,7 +1,7 @@
 import torch
 import os
 from torch import nn
-import joblib
+from pickle import load
 from sklearn.preprocessing import StandardScaler
 
 def preprocess(data):
@@ -11,7 +11,7 @@ def preprocess(data):
     try:
         # Load scaler
         scaler = StandardScaler()
-        scaler = joblib.load('scaler2.save')
+        scaler = load(open('/mnt/models/model-store/youtubegoes5g/scaler.pkl', 'rb'))
 
         tensor_list = []
         for item in data:
