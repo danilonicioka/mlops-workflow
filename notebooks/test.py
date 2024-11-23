@@ -12,8 +12,8 @@ def initialize():
 
     serialized_file = "/mnt/models/model-store/youtubegoes5g/model.pt"
 
-    if not os.path.isfile(model_pt_path):
-        raise RuntimeError(f"Missing the model file: {model_pt_path}")
+    if not os.path.isfile(serialized_file):
+        raise RuntimeError(f"Missing the model file: {serialized_file}")
 
     # Define model architecture
     class InterruptionModel(nn.Module):
@@ -30,7 +30,7 @@ def initialize():
     try:
         # Initialize and load the model
         model = InterruptionModel().to(device)
-        model.load_state_dict(torch.load(model_pt_path, map_location=device))
+        model.load_state_dict(torch.load(serialized_file, map_location=device))
         model.eval()
         return model
     except Exception as e:
