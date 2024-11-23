@@ -37,7 +37,7 @@ def inference(model_input):
             inference_list.append(output)
         return inference_list
     except Exception as e:
-        raise RuntimeError("Inference failed")
+        raise RuntimeError("Inference failed:", e)
 
 def postprocess(inference_output):
     """
