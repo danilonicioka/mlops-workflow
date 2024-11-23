@@ -3,7 +3,7 @@ import torch
 import os
 from torch import nn
 import logging
-import joblib
+from pickle import load
 from sklearn.preprocessing import StandardScaler
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class ModelHandler(BaseHandler):
             
             # Load scaler
             scaler = StandardScaler()
-            scaler = joblib.load('/mnt/models/model-store/youtubegoes5g/scaler.save')
+            scaler = load(open('/mnt/models/model-store/youtubegoes5g/scaler.pkl', 'rb'))
             
             tensor_list = []
             for item in data:
