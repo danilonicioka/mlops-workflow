@@ -4,6 +4,38 @@ from torch import nn
 from pickle import load
 from sklearn.preprocessing import StandardScaler
 
+def initialize():
+    """
+    Initialize model. This will be called during model loading time.
+    """
+    device = torch.device("cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu")
+
+    serialized_file = "/mnt/models/model-store/youtubegoes5g/model.pt"
+
+    if not os.path.isfile(model_pt_path):
+        raise RuntimeError(f"Missing the model file: {model_pt_path}")
+
+    # Define model architecture
+    class InterruptionModel(nn.Module):
+        def __init__(self):
+            super(InterruptionModel, self).__init__()
+            self.layer_1 = nn.Linear(in_features=29, out_features=200)
+            self.layer_2 = nn.Linear(in_features=200, out_features=100)
+            self.layer_3 = nn.Linear(in_features=100, out_features=1)
+            self.relu = nn.ReLU()
+
+        def forward(self, x):
+            return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
+
+    try:
+        # Initialize and load the model
+        model = InterruptionModel().to(device)
+        model.load_state_dict(torch.load(model_pt_path, map_location=device))
+        model.eval()
+        return model
+    except Exception as e:
+        raise RuntimeError("Model initialization failed:", e)
+
 def preprocess(data):
     """
     Transform raw input into model input data.
@@ -24,7 +56,7 @@ def preprocess(data):
     except Exception as e:
         raise ValueError("Failed to preprocess input data")
 
-def inference(model_input):
+def inference(model_input, model):
     """
     Perform model inference.
     """
@@ -32,7 +64,7 @@ def inference(model_input):
         inference_list = []
         for tensor_data in model_input:
             with torch.no_grad():
-                output = torch.round(torch.sigmoid(model_3(tensor_data))).squeeze()
+                output = torch.round(torch.sigmoid(model(tensor_data))).squeeze()
             inference = output.cpu().numpy().tolist()
             inference_list.append(output)
         return inference_list
@@ -60,8 +92,9 @@ def handle(data):
     Handle a prediction request.
     """
     try:
+        model = initialize()
         model_input = preprocess(data)
-        model_output = inference(model_input)
+        model_output = inference(model_input, model)
         return postprocess(model_output)
     except Exception as e:
         return [str(e)]
