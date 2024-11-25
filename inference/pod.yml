@@ -10,9 +10,7 @@ spec:
         claimName: model-files-claim
   containers:
     - name: local-model
-      image: ubuntu:20.04
-      command: [ "sleep" ]
-      args: [ "infinity" ]
+      image: python:3.9.20
       resources:
         requests:
           memory: "100Mi"
