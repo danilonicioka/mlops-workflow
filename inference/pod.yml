@@ -11,6 +11,8 @@ spec:
   containers:
     - name: local-model
       image: python:3.9.20
+      command: [ "sleep" ]
+      args: [ "infinity" ]
       resources:
         requests:
           memory: "100Mi"
