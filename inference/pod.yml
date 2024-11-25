@@ -11,6 +11,8 @@ spec:
   containers:
     - name: local-model
       image: ubuntu:20.04
+      command: [ "sleep" ]
+      args: [ "infinity" ]
       resources:
         requests:
           memory: "100Mi"
@@ -21,5 +23,5 @@ spec:
       volumeMounts:
         - mountPath: "/pv/"
           name: model-files
-    nodeSelector:
-        kubernetes.io/hostname: node5
+  nodeSelector:
+      kubernetes.io/hostname: node5
