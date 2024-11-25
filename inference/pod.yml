@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: local-model
+  namespace: kubeflow-user-example-com
+spec:
+  volumes:
+    - name: model-files
+      persistentVolumeClaim:
+        claimName: model-files-claim
+  containers:
+    - name: local-model
+      image: ubuntu:20.04
+      resources:
+        requests:
+          memory: "100Mi"
+          cpu: "100m"
+        limits:
+          memory: "1Gi"
+          cpu: "1"
+      volumeMounts:
+        - mountPath: "/pv/"
+          name: model-files
+    nodeSelector:
+        kubernetes.io/hostname: node5
