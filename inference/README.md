@@ -9,3 +9,4 @@ curl -v -H "Host: ${SERVICE_HOSTNAME}" -H "Content-Type: application/json" http:
 
 kubectl cp ../kserve/model.pt local-model:/pv/
 kubectl cp ../notebooks/scaler.pkl local-model:/pv/
+kubectl cp test.py local-model:/pv/
