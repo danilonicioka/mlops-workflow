@@ -45,7 +45,7 @@ class ModelHandler(BaseHandler):
         try:
             # Initialize and load the model
             self.model = InterruptionModel().to(self.device)
-            self.model.load_state_dict(torch.load(model_pt_path, weights_only=True, map_location=self.device))
+            self.model.load_state_dict(torch.load(model_pt_path, map_location=self.device))
             self.model.eval()
             self.initialized = True
             logger.info("Model loaded and ready for inference")
