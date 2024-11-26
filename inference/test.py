@@ -30,7 +30,7 @@ def initialize():
     try:
         # Initialize and load the model
         model = InterruptionModel().to(device)
-        model.load_state_dict(torch.load(serialized_file, map_location=device))
+        model.load_state_dict(torch.load(serialized_file, weights_only=True, map_location=device))
         model.eval()
         return model
     except Exception as e:
