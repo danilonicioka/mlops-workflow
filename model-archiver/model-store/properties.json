@@ -5,12 +5,12 @@
     "model-file": "model.py",
     "serialized-file": "model.pt",
     "extra-files": "",
-    "handler": "custom_handler.py",
+    "handler": "handler.py",
     "min-workers" : 1,
     "max-workers": 5,
     "batch-size": 1,
     "max-batch-delay": 10,
     "response-timeout": 120,
-    "requirements": ""
+    "requirements": "requirements.txt"
   }
 ]
