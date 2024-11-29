@@ -1,3 +1,5 @@
+# Inference Request
+
 export INGRESS_HOST=localhost
 export INGRESS_PORT=8085
 MODEL_NAME=youtubegoes5g
@@ -5,14 +7,9 @@ SERVICE_HOSTNAME=$(kubectl get inferenceservice youtubegoes5g -o jsonpath='{.sta
 
 curl -v -H "Host: ${SERVICE_HOSTNAME}" -H "Content-Type: application/json" http://${INGRESS_HOST}:${INGRESS_PORT}/v1/models/${MODEL_NAME}:predict -d @./youtubegoes5g-input.json -w "\nResponse Time: %{time_total}s\n" 
 
-# Copy files to pod for local test
+# Concurrent request
 
-kubectl cp ../kserve/model.pt local-model:/pv/
-kubectl cp ../notebooks/scaler.pkl local-model:/pv/
-kubectl cp test.py local-model:/pv/
-kubectl cp ../kserve/requirements.txt local-model:/pv/
 
-pip install torch --no-cache-dir
 
 # Stress Testing
 

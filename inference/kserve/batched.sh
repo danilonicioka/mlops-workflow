@@ -1,7 +1,7 @@
 #!/bin/bash
 
 URL="http://localhost:8085/v1/models/youtubegoes5g:predict"
-BATCH_FILE="batched.json"
+BATCH_FILE="inputs.json"
 HOST=youtubegoes5g.kubeflow-user-example-com.svc.cluster.local
 
 start_time=$(date +%s%N)
