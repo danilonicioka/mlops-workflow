@@ -13,3 +13,7 @@ kubectl cp test.py local-model:/pv/
 kubectl cp ../kserve/requirements.txt local-model:/pv/
 
 pip install torch --no-cache-dir
+
+# Stress Testing
+
+ab -n 1000 -c 10 -p batched.json -T "application/json" http://localhost:8085/v1/models/youtubegoes5g:predict
