@@ -1,8 +1,7 @@
 # Copy files to pod for local test
 
-kubectl cp ../kserve/model.pt local-model:/pv/
-kubectl cp ../notebooks/scaler.pkl local-model:/pv/
-kubectl cp test.py local-model:/pv/
-kubectl cp ../kserve/requirements.txt local-model:/pv/
+kubectl cp ../../model-archiver/model-store/youtubegoes5g local-model:/pv/youtubegoes5g
+kubectl cp tests local-model:/pv/tests
 
+# To install torch on the pod if it is causing timeout
 pip install torch --no-cache-dir
