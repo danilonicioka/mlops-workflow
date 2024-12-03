@@ -11,7 +11,7 @@ class MyHandler():
 
     def initialize(self):
         self.device = torch.device("cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu")
-        serialized_file = "/pv/model.pt"
+        serialized_file = "/pv/tests/model.pt"
 
         if not os.path.isfile(serialized_file):
             raise RuntimeError(f"Missing the model file: {serialized_file}")
@@ -24,14 +24,14 @@ class MyHandler():
         except Exception as e:
             raise RuntimeError("Model initialization failed:", e)
 
-    def preprocess(data):
+    def preprocess(self, data):
         """
         Transform raw input into model input data.
         """
         try:
             # Load scaler
             scaler = StandardScaler()
-            scaler = load(open('/pv/scaler.pkl', 'rb'))
+            scaler = load(open('/pv/tests/scaler.pkl', 'rb'))
 
             tensor_list = []
             for item in data:
@@ -42,7 +42,7 @@ class MyHandler():
             combined_tensor = torch.cat(tensor_list, dim=0)
             return combined_tensor
         except Exception as e:
-            raise ValueError("Failed to preprocess input data")
+            raise ValueError("Failed to preprocess input data: ", e, "data received: ", data)
 
     def inference(self, model_input):
         """
@@ -59,7 +59,7 @@ class MyHandler():
         except Exception as e:
             raise RuntimeError("Inference failed:", e)
 
-    def postprocess(inference_output):
+    def postprocess(self, inference_output):
         """
         Convert model output to a list of predictions.
         """
@@ -73,7 +73,7 @@ class MyHandler():
                     result_list.append("No Stall")
             return result_list
         except Exception as e:
-            raise ValueError("Failed to postprocess output data")
+            raise ValueError("Failed to postprocess output data: ", e)
 
     def handle(self, data):
         """
@@ -82,7 +82,7 @@ class MyHandler():
         try:
             self.initialize()
             model_input = self.preprocess(data)
-            model_output = self.inference(model_input, self.model)
+            model_output = self.inference(model_input)
             return self.postprocess(model_output)
         except Exception as e:
             return [str(e)]
