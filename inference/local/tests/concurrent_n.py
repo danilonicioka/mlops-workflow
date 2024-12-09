@@ -5,7 +5,7 @@ def run_script(arg):
     try:
         # Run the subprocess and capture output
         result = subprocess.run(
-            ["python", "concurrent-single.py"] + arg.split(),
+            ["python", "/pv/tests/concurrent-single.py"] + arg.split(),
             text=True,  # Ensure output is returned as a string
             capture_output=True,
             check=True  # Raise exception for non-zero exit code
@@ -16,7 +16,7 @@ def run_script(arg):
         # Return the error message
         return f"Error for {arg}:\n{e.stderr}"
 
-args = ["--execn 1", "--execn 2", "--execn 3"]
+args = ["--execn 1", "--execn 2", "--execn 3", "--execn 4"]
 
 # Run processes concurrently
 with ProcessPoolExecutor() as executor:

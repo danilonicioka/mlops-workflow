@@ -15,10 +15,10 @@ spec:
       args: [ "infinity" ]
       resources:
         requests:
-          memory: "100Mi"
-          cpu: "100m"
+          memory: "2Gi"
+          cpu: "1"
         limits:
-          memory: "1Gi"
+          memory: "2Gi"
           cpu: "1"
       volumeMounts:
         - mountPath: "/pv/"
