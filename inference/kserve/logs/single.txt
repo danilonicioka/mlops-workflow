@@ -1,0 +1,15 @@
+2024-12-14T16:48:02,849 [INFO ] W-9000-youtubegoes5g_1.0-stdout MODEL_LOG - Received data: [{'data': [13, 13, 13, 0, 13, 13, 13, 13, -76, -76, -81, -76, -78.5, -76, -76, -7, -7, -12, -7, -9.5, -7, -7, 12, 12, 7, 12, 9.5, 12, 12]}]
+2024-12-14T16:48:02,849 [INFO ] W-9000-youtubegoes5g_1.0-stdout MODEL_LOG - Input data preprocessed successfully
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0-stdout MODEL_LOG - Inference performed successfully
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0-stdout MODEL_LOG - Output postprocessed successfully
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0-stdout org.pytorch.serve.wlm.WorkerLifeCycle - result=[METRICS]PredictionTime.Milliseconds:1.64|#ModelName:youtubegoes5g,Level:Model|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,1734194882,a325a8f5-f700-454e-b250-7b158877e483, pattern=[METRICS]
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0-stdout MODEL_METRICS - PredictionTime.ms:1.64|#ModelName:youtubegoes5g,Level:Model|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,requestID:a325a8f5-f700-454e-b250-7b158877e483,timestamp:1734194882
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 ACCESS_LOG - /127.0.0.1:51994 "POST /v1/models/youtubegoes5g:predict HTTP/1.1" 200 4
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 TS_METRICS - Requests2XX.Count:1.0|#Level:Host|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,timestamp:1734194882
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 TS_METRICS - ts_inference_latency_microseconds.Microseconds:4083.014|#model_name:youtubegoes5g,model_version:default|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,timestamp:1734194882
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 TS_METRICS - ts_queue_latency_microseconds.Microseconds:95.964|#model_name:youtubegoes5g,model_version:default|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,timestamp:1734194882
+2024-12-14T16:48:02,851 [DEBUG] W-9000-youtubegoes5g_1.0 org.pytorch.serve.job.Job - Waiting time ns: 95964, Backend time ns: 4229404
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 TS_METRICS - QueueTime.Milliseconds:0.0|#Level:Host|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,timestamp:1734194882
+2024-12-14T16:48:02,851 [DEBUG] W-9000-youtubegoes5g_1.0 org.pytorch.serve.wlm.WorkerThread - sent a reply, jobdone: true
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 org.pytorch.serve.wlm.WorkerThread - Backend response time: 4
+2024-12-14T16:48:02,851 [INFO ] W-9000-youtubegoes5g_1.0 TS_METRICS - WorkerThreadTime.Milliseconds:0.0|#Level:Host|#hostname:youtubegoes5g-predictor-00001-deployment-57d758c966-ntjds,timestamp:1734194882
