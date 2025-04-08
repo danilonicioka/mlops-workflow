@@ -1,0 +1,220 @@
+stages:
+    - build
+    - deploy_cluster
+    - deploy_apps
+
+variables:
+    kubespray_dir: kubespray
+    default_vms: terraform/default/
+    mrsrc_vms: terraform/mrsrc/
+    new_vm_dir: terraform/new/
+
+image:
+    name: hashicorp/terraform
+    entrypoint: 
+        - '/usr/bin/env'
+        - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+kubespray:
+  stage: build
+  when: manual
+  image:
+    name: gcr.io/kaniko-project/executor:v1.9.0-debug
+    entrypoint: [""]
+  variables:
+    CI_COMMIT_TAG: "1.0.0"
+  before_script:
+      - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:$CI_COMMIT_TAG"
+
+deploy vms:
+    stage: deploy_cluster
+    when: manual
+    before_script:
+        - terraform -chdir=$mrsrc_vms init
+        - terraform -chdir=$mrsrc_vms plan -out tf_vms_plan -var "USER=$XO_USER" -var "PASSWORD=$XO_PASSWORD" -var "XO_IP=$XO_IP" -var "VMS=$VMS" -var "KUBE_CONTROL_HOSTS=$KUBE_CONTROL_HOSTS"
+    script:
+        - terraform -chdir=$mrsrc_vms apply tf_vms_plan
+
+cluster:
+    stage: deploy_cluster
+    when: manual
+    image: $CI_REGISTRY_IMAGE:1.0.0
+    before_script:
+        - x=1; while [ $x -le $VMS ]; do echo "10.15.201.$x" >> ips && echo $(( x++ )); done
+        - export IPS=`cat ips`
+        - git clone --branch v2.22.1 https://github.com/kubernetes-sigs/kubespray.git
+        - cp -r kubespray/inventory/sample kubespray/inventory/mycluster
+        - touch kubespray/inventory/mycluster/hosts.yaml
+        - CONFIG_FILE=kubespray/inventory/mycluster/hosts.yaml python3 kubespray/contrib/inventory_builder/inventory.py ${IPS[@]}
+        - cp cluster/addons.yml kubespray/inventory/mycluster/group_vars/k8s_cluster/addons.yml
+        - cp cluster/k8s-cluster.yml kubespray/inventory/mycluster/group_vars/k8s_cluster/k8s-cluster.yml
+        - cp cluster/k8s-net-calico.yml kubespray/inventory/mycluster/group_vars/k8s_cluster/k8s-net-calico.yml
+        - cp cluster/all.yml kubespray/inventory/mycluster/group_vars/all/all.yml
+        - export ANSIBLE_HOST_KEY_CHECKING=False
+        - eval $(ssh-agent -s)
+        - mkdir ~/.ssh
+        - bash -c 'ssh-add <(echo "$SSH_PRIVATE_KEY")'
+        - ssh-keyscan -t rsa $IPS >> ~/.ssh/known_hosts
+    script:
+        - cd kubespray && ansible-playbook -i inventory/mycluster/hosts.yaml cluster.yml -b -v
+
+pre config:
+    when: manual
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    script:
+        # cert-manager
+        - kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.crds.yaml
+        # longhorn
+        - kubectl create namespace longhorn-system
+        - kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/prerequisite/longhorn-iscsi-installation.yaml -n longhorn-system
+        - kubectl apply -f https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/prerequisite/longhorn-nfs-installation.yaml -n longhorn-system
+        - kubectl apply -f apps/longhorn/backupstore.yml
+        # ingress
+        - helm pull oci://ghcr.io/nginxinc/charts/nginx-ingress --untar --version 0.18.1
+        - cd nginx-ingress && kubectl apply -f crds/
+
+longhorn:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    before_script:
+        - helm repo add longhorn https://charts.longhorn.io
+        - helm repo update
+    script:
+        - helm upgrade longhorn longhorn/longhorn -i -n longhorn-system --version 1.5.4
+    needs:
+        job: pre config
+
+metallb:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    before_script:
+        - kubectl create namespace metallb-system
+        - kubectl label namespaces metallb-system pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/audit=privileged pod-security.kubernetes.io/warn=privileged --overwrite=true
+        - helm repo add metallb https://metallb.github.io/metallb
+    script:
+        - helm upgrade metallb metallb/metallb -i -n metallb-system
+    needs:
+        job: longhorn
+
+cert manager:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    before_script:
+        - helm repo add jetstack https://charts.jetstack.io
+        - helm repo update
+    script:
+        - helm upgrade cert-manager jetstack/cert-manager -i -n cert-manager --create-namespace --version v1.12.0
+    needs:
+        job: metallb
+
+ingress:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    script:
+        - helm upgrade nginx-ingress oci://ghcr.io/nginxinc/charts/nginx-ingress -i -f apps/nginx-ingress/values.yml -n nginx-ingress --create-namespace --version 0.18.1
+    needs:
+        job: cert manager
+
+argocd:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    before_script:
+        - helm repo add argo https://argoproj.github.io/argo-helm
+    script:
+        - helm upgrade argocd argo/argo-cd -i -f apps/argocd/values.yml -n argocd --create-namespace
+    needs:
+        job: ingress
+
+rancher:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    before_script:
+        - helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
+    script:
+        - helm upgrade rancher rancher-stable/rancher -i -n cattle-system --create-namespace --set hostname=rancher.example.com --set bootstrapPassword=admin
+    needs:
+        job: argocd
+
+post config:
+    stage: deploy_apps
+    image: alpine/k8s:1.28.1
+    script:
+        # metallb
+        - kubectl apply -f apps/metallb/ip_pool.yml -n metallb-system
+        - kubectl apply -f apps/metallb/l2ad.yml -n metallb-system
+        # cert-manager
+        - kubectl apply -f apps/cert-manager/issuer.yml -n cert-manager
+        # rancher
+        - kubectl apply -f apps/rancher/ingress.yml -n cattle-system
+        # argo-cd
+        - kubectl apply -f apps/argocd/ingress.yml -n argocd
+    needs:
+        job: rancher
+
+.vm index:
+    when: manual
+    stage: add_node
+    image: 
+        name: kvaps/opennebula
+        entrypoint: [""]
+    before_script:
+        - echo $TF_VAR_USER:$TF_VAR_PASSWORD > ~/.one/one_auth
+        - export ONE_XMLRPC=http://{OPNHOSTIP}/RPC2
+    script:
+        - echo "VM_INDEX=`onevm list | grep k8s | wc -l`" > nvms.env
+        - cat nvms.env
+    artifacts:
+        reports:
+            dotenv: nvms.env
+
+.deploy VM:
+    when: manual
+    stage: add_node
+    script:
+        - terraform -chdir=$new_vm_dir init
+        - terraform -chdir=$new_vm_dir plan -out tf_new_plan -var "ssh_public_key=$SSH_PUBLIC_KEY" -var "vm_index=$VM_INDEX"
+        - terraform -chdir=$new_vm_dir apply tf_new_plan
+    needs:
+        job: vm index
+        artifacts: true
+
+.add node:
+    when: manual
+    stage: add_node
+    image: $CI_REGISTRY_IMAGE:1.0.0
+    before_script:
+        - git clone --branch v2.22.1 https://github.com/kubernetes-sigs/kubespray.git
+        - cp -r kubespray/inventory/sample kubespray/inventory/mycluster
+        - touch kubespray/inventory/mycluster/hosts.yaml
+        - CONFIG_FILE=kubespray/inventory/mycluster/hosts.yaml python3 kubespray/contrib/inventory_builder/inventory.py ${HOSTS[@]}
+        - cp cluster/addons.yml kubespray/inventory/mycluster/group_vars/k8s_cluster/addons.yml
+        - cp cluster/all.yml kubespray/inventory/mycluster/group_vars/all/all.yml
+        - cp cluster/k8s-cluster.yml kubespray/inventory/mycluster/group_vars/k8s_cluster/k8s-cluster.yml
+        - cp cluster/main.yml kubespray/roles/kubernetes/node/tasks/main.yml
+        - export ANSIBLE_HOST_KEY_CHECKING=False
+        - eval $(ssh-agent -s)
+        - mkdir ~/.ssh
+        - bash -c 'ssh-add <(echo "$SSH_PRIVATE_KEY")'
+        - ssh-keyscan -t rsa $HOSTS >> ~/.ssh/known_hosts
+    script:
+        - cd kubespray && ansible-playbook -i inventory/mycluster/hosts.yaml scale.yml -b -v
+    needs:
+        job: deploy VM
+
+.resize:
+    when: manual
+    stage: update_vms
+    image: 
+        name: kvaps/opennebula
+        entrypoint: [""]
+    before_script:
+        - echo $TF_VAR_USER:$TF_VAR_PASSWORD > ~/.one/one_auth
+        - export ONE_XMLRPC=http://{OPNHOSTIP}/RPC2
+    script:
+        - onevm disk-resize $VM_ID 0 $NEW_SIZE

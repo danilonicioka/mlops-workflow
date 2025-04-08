@@ -1,0 +1,8 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: pool-private
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.15.201.1-10.15.201.253

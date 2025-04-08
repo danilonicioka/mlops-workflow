@@ -1,0 +1,13 @@
+#network:
+version: 1
+config:
+    - type: physical
+      name: eth0
+      subnets:
+      - type: static
+        address: '${ip}'
+        netmask: '255.255.255.0'
+        gateway: '10.15.201.254'
+        dns_nameservers:
+            - {DNSIP}
+            - 8.8.8.8
